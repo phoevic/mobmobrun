@@ -281,22 +281,32 @@ function addLane(idx) {
 /* --- [수정] 장애물 생성 함수 (모든 맵에서 KBL 선수/마스코트 등장) --- */
 function createEnemyInLane(objs, speedMult, laneLevel, laneType) {
     
-    // 🌊 [케이스 1] 강물(Water) -> 통나무 생성 (이건 유지)
-    // 강물 위에는 사람이 걸어다닐 수 없으니 통나무만 나옵니다.
+    // 🌊 [케이스 1] 강물(Water) -> 다양한 길이의 통나무 생성
     if (laneType === 'river_water') {
         const speed = (1.5 + Math.random()) * speedMult * (Math.random() > 0.5 ? 1 : -1);
+        
+        // 통나무 개수 (2~3개)
         const count = Math.random() > 0.5 ? 2 : 3;
+
         for (let i = 0; i < count; i++) {
+            // 📏 통나무 길이 랜덤 설정 (100px ~ 190px 사이)
+            const randomWidth = 100 + Math.floor(Math.random() * 90);
+
             objs.push({ 
-                x: (i * 250) + Math.random() * 50, 
+                // 간격을 조금 더 넓혀서(300) 긴 통나무끼리 겹치지 않게 함
+                x: (i * 300) + Math.random() * 50, 
                 type: 'log', 
-                width: 120, height: 40, 
+                width: randomWidth, // ✨ 랜덤 길이 적용!
+                height: 40, 
                 speed: speed 
             });
         }
         return; // 통나무 만들고 함수 종료
     }
+// 🚗 외제차? 국산차? 랜덤 차 색상 팔레트 목록
+    const carColors = ["#FFB655", "#1785B8", "#F44336", "#2196F3", "#FFEB3B", "#4CAF50", "#FF9800", "#9C27B0", "#795548", "#607D8B"];
 
+    // ... (아래쪽 코드는 그대로 두세요) ...
     // 🚗 [케이스 2] 그 외 모든 땅 (도로, 코트, 얼음, 우주, 강가) -> 적 생성
     const lanes = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
     
@@ -315,45 +325,50 @@ function createEnemyInLane(objs, speedMult, laneLevel, laneType) {
     for (let i = 0; i < 4; i++) {
         if (count >= maxEnemies) break;
 
-        if (Math.random() < 0.5) {
+
+// ✨ [핵심 수정] 도로(road)일 때 50% 확률로 '픽셀 자동차' 생성!
+        // 그 외 지형이거나, 50% 확률에 안 걸리면 기존 '사람' 생성
+        let isCar = (laneType === 'road' && Math.random() < 0.5);
+
+        if (Math.random() < 0.5 || isCar) { // 생성 확률 체크 (차가 당첨되면 무조건 생성)
             const laneX = lanes[i] * 60; 
+            const speed = (2 + Math.random() * 2) * speedMult * (Math.random() > 0.5 ? 1 : -1);
             
-            // 🔥 [수정] 조건문 삭제! 
-            // 맵 종류(Road, Ice 등) 상관없이 무조건 'player' 타입으로 설정
-            let enemyType = 'player'; 
-            let selectedData = null;
-
-            // 🎲 1. 마스코트 뽑기 (35% 확률)
-            if (Math.random() < 0.225 && mascots.length > 0) {
-                selectedData = mascots[Math.floor(Math.random() * mascots.length)];
-            } 
-            // 🎲 2. KBL 선수 뽑기 (나머지 확률)
-            else if (players.length > 0) {
-                selectedData = players[Math.floor(Math.random() * players.length)];
-            }
-
-            // 실제 객체 생성
             let finalObj = {
                 x: laneX,
-                type: enemyType,
                 width: 60, height: 60,
-                speed: (2 + Math.random() * 2) * speedMult * (Math.random() > 0.5 ? 1 : -1)
+                speed: speed
             };
 
-            // 데이터 적용
-            if (selectedData) {
-                finalObj.name = selectedData.name;
-                finalObj.team = selectedData.team;
-                finalObj.number = selectedData.number;
-                finalObj.color = selectedData.color;
-                finalObj.isRedBoo = selectedData.isRedBoo;
-                finalObj.isPegasus = selectedData.isPegasus;
+            if (isCar) {
+                // 🚗 픽셀 자동차 데이터 설정
+                finalObj.type = 'pixel_car';
+                // 세단 or 트럭 랜덤 선택
+                finalObj.spriteName = Math.random() > 0.5 ? 'car_sedan' : 'car_truck';
+                // 차체 색상 랜덤 선택
+                finalObj.carColor = carColors[Math.floor(Math.random() * carColors.length)];
+                finalObj.name = "교통사고"; // 충돌 메시지용
+                finalObj.team = "안전운전"; // 충돌 메시지용
             } else {
-                // 데이터 없을 때 기본값 (혹시 모를 오류 방지)
-                finalObj.name = "OPPONENT";
-                finalObj.team = "KBL";
-                finalObj.number = "00";
-                finalObj.color = "#333";
+                // 🏃‍♂️ 기존 사람/마스코트 데이터 설정
+                finalObj.type = 'player';
+                let selectedData = null;
+                if (Math.random() < 0.225 && mascots.length > 0) {
+                    selectedData = mascots[Math.floor(Math.random() * mascots.length)];
+                } else if (players.length > 0) {
+                    selectedData = players[Math.floor(Math.random() * players.length)];
+                }
+
+                if (selectedData) {
+                    finalObj.name = selectedData.name;
+                    finalObj.team = selectedData.team;
+                    finalObj.number = selectedData.number;
+                    finalObj.color = selectedData.color;
+                    finalObj.isRedBoo = selectedData.isRedBoo;
+                    finalObj.isPegasus = selectedData.isPegasus;
+                } else {
+                    finalObj.name = "OPPONENT"; finalObj.team = "KBL"; finalObj.number = "00"; finalObj.color = "#333";
+                }
             }
 
             objs.push(finalObj);
@@ -755,56 +770,92 @@ if (lane.type === 'court') {
                 if (obj.x > canvas.width + 100) obj.x = -150; if (obj.x < -150) obj.x = canvas.width + 100;
                 let drawX = obj.x;
                 if (lane.type === 'court') drawX += Math.sin(Date.now() / 100) * 3;
-                drawCharacter(ctx, obj, drawX, sY + 10, 60, obj.color, obj.number);
 
-         // --- [이름표: 글자 길이에 맞춤] ---
-                const teamName = obj.team || "TEAM";
-                const playerName = obj.name || "PLAYER";
+// ✨ [수정] 자동차면 픽셀 차 그리기, 아니면 사람 그리기
+// 🚗 [수정] 자동차 그리기 & 판정 (좌표 일치화)
+                if (obj.type === 'pixel_car') {
+                    ctx.save();
+                    
+                    // 1. 자동차 그리기
+                    // 🎨 방향에 따른 "중앙 기준" 뒤집기 (좌표 오차 원천 차단)
+                    // 차의 정중앙(drawX + 30)으로 붓을 옮깁니다.
+                    ctx.translate(drawX + 30, sY);
+                    
+                    if (obj.speed < 0) {
+                        ctx.scale(-1, 1); // 오른쪽으로 갈 때만 뒤집기
+                    }
+                    
+                    // 자동차 색상 적용
+                    const currentCarPalette = {...CarPalette, 9: obj.carColor};
 
-                // 1. 글자 크기 미리 계산
-                ctx.font = "bold 8px Galmuri11"; 
-                const teamWidth = ctx.measureText(teamName).width;
-                
-                ctx.font = "bold 10px Galmuri11";
-                const playerWidth = ctx.measureText(playerName).width;
+                    // 그림 그리기 (중앙 기준이므로 x좌표는 -30부터 시작)
+                    if (Sprites32[obj.spriteName]) {
+                        drawSprite32(ctx, obj.spriteName, currentCarPalette, -30, 10, 60);
+                    } else {
+                        // 데이터 없을 때 비상용 박스
+                        ctx.fillStyle = obj.carColor || "red";
+                        ctx.fillRect(-30, 10, 60, 40);
+                    }
+                    
+                    ctx.restore();
 
-                // 2. 박스 너비 결정 (더 긴 글자 기준 + 여백)
-                const boxWidth = Math.max(teamWidth, playerWidth) + 8;
-                const boxHeight = 24; 
-                
-                // 3. 중앙 정렬 좌표 계산
-                const boxX = drawX + 30 - (boxWidth / 2);
-                const boxY = sY + 68;
+                    // 2. 충돌 판정 박스 (Hitbox) 설정
+                    // 시각적으로 보이는 차체: drawX ~ drawX + 60
+                    // 실제 충돌 영역: 앞뒤 범퍼 조금씩 떼고 중앙만 (drawX + 20 ~ drawX + 40)
+                    eLeft = drawX + 20; 
+                    eRight = drawX + 40; 
 
-                // 4. 배경 박스 그리기
-                ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-                ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+                } else {
+                    // 🏃‍♂️ 사람/장애물 그리기 (기존 코드 유지)
+                    drawCharacter(ctx, obj, drawX, sY + 10, 60, obj.color, obj.number);
+                    
+                    // 이름표 그리기
+                    const teamName = obj.team || "TEAM";
+                    const playerName = obj.name || "PLAYER";
+                    ctx.font = "bold 8px Galmuri11"; 
+                    const teamWidth = ctx.measureText(teamName).width;
+                    ctx.font = "bold 10px Galmuri11";
+                    const playerWidth = ctx.measureText(playerName).width;
+                    const boxWidth = Math.max(teamWidth, playerWidth) + 8;
+                    const boxX = drawX + 30 - (boxWidth / 2);
+                    const boxY = sY + 68;
 
-                // 5. 텍스트 그리기
-                ctx.textAlign = "center";
-                
-                // 팀 이름 (위)
-                ctx.fillStyle = "#FFD700"; // 금색
-                ctx.font = "bold 8px Galmuri11";
-                ctx.fillText(teamName, drawX + 30, boxY + 9);
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                    ctx.fillRect(boxX, boxY, boxWidth, 24);
+                    ctx.textAlign = "center";
+                    ctx.fillStyle = "#FFD700"; ctx.fillText(teamName, boxX + boxWidth/2, boxY + 9);
+                    ctx.fillStyle = "white"; ctx.fillText(playerName, boxX + boxWidth/2, boxY + 20);   
+                    
+                    // 사람 판정은 조금 더 넓게
+                    eLeft = drawX + 15;
+                    eRight = drawX + 45;
+                }
 
-                // 선수 이름 (아래)
-                ctx.fillStyle = "white"; // 흰색
-                ctx.font = "bold 10px Galmuri11";
-                ctx.fillText(playerName, drawX + 30, boxY + 20);   
+                // 📏 [디버그] 히트박스 눈으로 확인하기 (초록:나, 빨강:적)
+                // 문제가 해결되면 이 부분은 지우셔도 됩니다.
+                const pLeft = player.currentX + 25; 
+                const pRight = player.currentX + 35; 
 
-                // 정밀 충돌 판정
-                const pLeft = player.currentX + 10, pRight = player.currentX + 50; 
-                const eLeft = obj.x + 18, eRight = obj.x + 42; 
+                // ctx.strokeStyle = "#00FF00"; ctx.strokeRect(pLeft, sY + 20, pRight - pLeft, 40); // 내 박스
+                // ctx.strokeStyle = "#FF0000"; ctx.strokeRect(eLeft, sY + 20, eRight - eLeft, 40); // 적 박스
 
-if (invulnerable === 0 && isPlayerLane && pRight > eLeft && pLeft < eRight) {
-    lives--; syncUI();
-    triggerHitEffect(); // 👈 ✨ [여기!] 이 한 줄을 꼭 넣어주세요!
-    
-    const actions = ['블락', '스틸', '굿 파울'];
-    showDamageMsg(`[${obj.team}] ${obj.name}의 ${actions[Math.floor(Math.random()*3)]}!`);
-    if (lives <= 0) triggerGameOver("파울 아웃!"); else invulnerable = 60;
-}
+                // 💥 실제 충돌 체크
+                if (invulnerable === 0 && isPlayerLane && pRight > eLeft && pLeft < eRight) {
+                    lives--; syncUI();
+                    triggerHitEffect(); 
+                    
+                    if (obj.type === 'pixel_car') {
+                        showDamageMsg("교통사고! 🚑");
+                    } else {
+                        const actions = ['블락', '스틸', '굿 파울'];
+                        showDamageMsg(`[${obj.team}] ${obj.name}의 ${actions[Math.floor(Math.random()*3)]}!`);
+                    }
+                    
+                    if (lives <= 0) triggerGameOver(obj.type === 'pixel_car' ? "로드킬..." : "파울 아웃!"); 
+                    else invulnerable = 60;
+                }            // 👈 여기가 땅 위 장애물 if문 닫는 괄호
+            
+
       // ✨ 수정된 통나무 코드 (여기에 넣어야 obj 에러가 안 납니다!)
 } else if (lane.type === 'river_water' && obj.type === 'log') {
     obj.x += obj.speed;
@@ -861,9 +912,9 @@ if (onRiver && !onLog && invulnerable === 0) {
     lives--; syncUI(); 
     triggerHitEffect(); // 👈 ✨ [여기!] 물에 빠질 때도 번쩍!
     
-    showDamageMsg("으악! 물에 빠졌다!"); 
+    showDamageMsg("으악! 태화강에 빠졌다!"); 
     invulnerable = 60; 
-    if (lives <= 0) triggerGameOver("익사!"); 
+    if (lives <= 0) triggerGameOver("꼬로록.."); 
 }
 
     if (onLog) { player.targetX += logSpeed; player.currentX += logSpeed; }
