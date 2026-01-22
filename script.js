@@ -1,6 +1,3 @@
-
-
-
 /* script.js - 게임의 두뇌 및 동작 */
 
 const wrapper = document.getElementById('game-wrapper');
@@ -62,26 +59,54 @@ let touchMoved = false; // ✨ 이번 터치에서 이미 움직였는지 체크
             digitData.forEach((row, ri) => row.forEach((p, ci) => { if(p) targetCtx.fillRect(dx + ci * ds, dy + ri * ds, ds, ds); }));
         }
 
+// ✅ 이 코드를 그 자리에 붙여넣으세요!
+
         function drawCharacter(targetCtx, playerObj, x, y, size, teamColor = "#D70025", numOverride = null) {
             if (!targetCtx) return;
+            
+            // 🎨 유니폼 색상 적용 (6번 색깔을 teamColor로 교체)
             const sColors = {...Colors, 6: teamColor};
             
+            // 1. 특수 캐릭터 (마스코트, 공, 동물 등) 처리
             if (playerObj?.isRedBoo) { drawSprite32(targetCtx, 'redboo', { 0: null, 1: "#000000", 2: "#FFFFFF", 3: "#FF0000" }, x, y, size); return; }
             if (playerObj?.isGongaji) { drawCustomSprite(targetCtx, Sprites32.gongaji, GongajiPalette, x, y, size); return; }
-	    if (playerObj?.isPegasus) {drawCustomSprite(targetCtx, Sprites32.pegasus, PegasusPalette, x, y, size); return; }
-            if (playerObj?.isGorilla) drawSprite32(targetCtx, 'gorilla', sColors, x, y, size);
-            else if (playerObj?.isBall || playerObj?.id === 999) drawSprite32(targetCtx, 'basketball', basketballPalette, x, y, size);
-            else if (playerObj?.isWhale || playerObj?.id === 26) drawSprite32(targetCtx, 'whale', Colors, x, y, size);
-            else {
-                sColors[3] = playerObj?.hair || "#332211";
-                drawSprite32(targetCtx, 'human_base', sColors, x, y, size);
-                
-                const num = (numOverride !== null && numOverride !== undefined) ? numOverride : playerObj?.number;
-                
-                if (num !== undefined && num !== null && !["🐶", "🐳", "🏀", "👹", "M", "O", "B", "I", "S"].includes(String(num))) {
+            if (playerObj?.isPegasus) { drawCustomSprite(targetCtx, Sprites32.pegasus, PegasusPalette, x, y, size); return; }
+            if (playerObj?.isGorilla) { drawSprite32(targetCtx, 'gorilla', sColors, x, y, size); return; }
+            if (playerObj?.isBall || playerObj?.id === 999) { drawSprite32(targetCtx, 'basketball', basketballPalette, x, y, size); return; }
+            if (playerObj?.isWhale || playerObj?.id === 26) { drawSprite32(targetCtx, 'whale', Colors, x, y, size); return; }
+
+            // 2. 사람 캐릭터 (선수) 그리기
+            let spriteName = 'human_base'; // 기본값: 상대방(적)은 32x32 기본형
+            
+            // 내 캐릭터 판별 (팀 정보가 없거나, 모비스 팀인 경우)
+            const isMyPlayer = !playerObj.team || playerObj.team === "ULSAN HYUNDAI MOBIS";
+
+            if (isMyPlayer) {
+                spriteName = 'human_player_64'; // ✨ 내 캐릭터는 64x64 고해상도 사용!
+            }
+
+            sColors[3] = playerObj?.hair || "#332211"; // 머리색 적용
+            drawSprite32(targetCtx, spriteName, sColors, x, y, size); // 캐릭터 그리기
+            
+            // 3. 등번호 그리기
+            const num = (numOverride !== null && numOverride !== undefined) ? numOverride : playerObj?.number;
+            
+            if (num !== undefined && num !== null && !["🐶", "🐳", "🏀", "👹", "M", "O", "B", "I", "S"].includes(String(num))) {
+                const ns = String(num);
+                const pSize = size / 32; // 크기 비율 계산
+
+                if (isMyPlayer) {
+                    // ⬛ 내 캐릭터: 흰색 박스 위에 검정 글씨
+                    targetCtx.fillStyle = "#111"; 
+                    if (ns.length === 1) {
+                        drawDigit(targetCtx, ns[0], x + 13.5 * pSize, y + 15 * pSize, pSize * 1.8);
+                    } else {
+                        drawDigit(targetCtx, ns[0], x + 9 * pSize, y + 16 * pSize, pSize * 1.3);
+                        drawDigit(targetCtx, ns[1], x + 16.5 * pSize, y + 16 * pSize, pSize * 1.3);
+                    }
+                } else {
+                    // ⬜ 적 캐릭터: 어두운 옷 위에 흰색 글씨 (기존 유지)
                     targetCtx.fillStyle = "white";
-                    const ns = String(num);
-                    const pSize = size / 32;
                     if (ns.length === 1) {
                         drawDigit(targetCtx, ns[0], x + 13.5 * pSize, y + 16 * pSize, pSize * 1.8);
                     } else {
@@ -90,14 +115,20 @@ let touchMoved = false; // ✨ 이번 터치에서 이미 움직였는지 체크
                     }
                 }
             }
+
+            // 4. 반짝이는 효과 (스타 플레이어 등)
             if ([6, 12, 45].includes(playerObj?.id)) {
                 const time = Date.now() / 400; const radius = size * 0.65;
                 for (let i = 0; i < 3; i++) {
                     const angle = time + (i * Math.PI * 2 / 3);
-                    const starX = x + size/2 + Math.cos(angle) * radius; const starY = y + size/2 + Math.sin(angle) * radius;
-                    const s = size/18; targetCtx.fillStyle = "#FFCA08";
-                    targetCtx.fillRect(starX - s/2, starY - s*2, s, s*4); targetCtx.fillRect(starX - s*2, starY - s/2, s*4, s);
-                    targetCtx.fillStyle = "white"; targetCtx.fillRect(starX - s/2, starY - s/2, s, s);
+                    const starX = x + size/2 + Math.cos(angle) * radius; 
+                    const starY = y + size/2 + Math.sin(angle) * radius;
+                    const s = size/18; 
+                    targetCtx.fillStyle = "#FFCA08";
+                    targetCtx.fillRect(starX - s/2, starY - s*2, s, s*4); 
+                    targetCtx.fillRect(starX - s*2, starY - s/2, s*4, s);
+                    targetCtx.fillStyle = "white"; 
+                    targetCtx.fillRect(starX - s/2, starY - s/2, s, s);
                 }
             }
         }
@@ -141,112 +172,195 @@ let touchMoved = false; // ✨ 이번 터치에서 이미 움직였는지 체크
             renderPreview(); syncUI();
         }
 
-        function addLane(idx) {
-            let type = 'safe', color = idx % 2 === 0 ? '#d29145' : '#de9b42', objs = [];
-            if (idx > 0 && idx % LEVEL_DIST === 0) { 
-                type = 'goal'; color = '#D70025'; 
-                // 관객들과 팻말 배치 (M, O, B, I, S)
-                const letters = ['M', 'O', 'B', 'I', 'S'];
-                
-                // 화면 너비에 맞춰 간격 조정 (잘리지 않게)
-                const signWidth = 40;
-                const minGap = 5;
-                const preferredGap = 30; // 간격 넓게
-                
-                // 가용 너비 확인
-                const maxContentWidth = canvas.width - 40; // 좌우 20px 여유
-                const totalSignWidth = signWidth * letters.length;
-                
-                // 갭 계산
-                let gap = preferredGap;
-                if (totalSignWidth + gap * (letters.length - 1) > maxContentWidth) {
-                    gap = (maxContentWidth - totalSignWidth) / (letters.length - 1);
-                }
-                
-                const totalWidth = totalSignWidth + gap * (letters.length - 1);
-                const startX = (canvas.width - totalWidth) / 2;
-                
-                // 팻말 든 관객 (중앙 정렬)
-                letters.forEach((char, i) => {
-                    objs.push({ 
-                        x: startX + i * (signWidth + gap), 
-                        type: 'audience',
-                        char: char, 
-                        color: '#D70025'
-                    });
-                });
-                consecutiveRoads = 0; 
-} else if (idx > 2) {
-                // 1. 강이 나올 확률 계산 (기본 10% + 레벨당 3%씩 증가하되, 최대 35%로 제한)
-                let riverProb = Math.min(0.35, 0.10 + (currentLevel * 0.03));
+/* --- [수정 후] addLane 함수 전체 --- */
+/* --- 1단계 수정: 스토리 모드 맵 생성 --- */
+/* --- [수정] 맵 생성 함수 (강 테마: 물/땅/안전 섞기) --- */
+/* --- [수정] 맵 생성 함수 (속도 계산 위치 수정 및 괄호 정리 완료) --- */
+function addLane(idx) {
+    // 1. 기본값: 안전한 땅
+    let type = 'safe';
+    let color = idx % 2 === 0 ? '#d29145' : '#de9b42'; 
+    let objs = [];
+    
+    // 2. 골인 지점 (변경 없음)
+    if (idx > 0 && idx % LEVEL_DIST === 0) {
+        type = 'goal'; color = '#D70025';
+        ['M', 'O', 'B', 'I', 'S'].forEach((char, i) => { 
+            objs.push({ x: 50 + i * 70, type: 'audience', char: char }); 
+        });
+    } 
+    // 3. 실제 게임 구간
+    else if (idx > 2) {
+        const laneLevel = Math.floor(idx / LEVEL_DIST) + 1;
+        const cycle = (laneLevel - 1) % 10 + 1; // 1~10 사이클
 
-                // 난이도 상향: 장애물(도로/강) 등장 확률 (레벨 1: 50% -> 레벨 10: 90% 로 증가)
-                const difficultyFactor = Math.min(0.9, 0.35 + (currentLevel * 0.04));
+        // ⚡ [중요 수정] 속도 계산을 테마 로직보다 '먼저' 해야 합니다!
+        let speedMult = 1.0 + (laneLevel * 0.12);
+        if (speedMult > 2.5) speedMult = 2.5;
 
-                if (Math.random() < difficultyFactor) {
-                    // 2. 강(River) 생성 조건: 레벨 4부터 등장하며 계산된 riverProb 확률에 따라 생성
-                    if (currentLevel >= 4 && Math.random() < riverProb) {
-                        type = 'river'; 
-                        color = '#4fa4b8'; // 물 색깔
-                        
-                        // 통나무 생성
-                        const logCount = Math.floor(Math.random() * 2) + 2; // 2~3개 통나무
-                        const speed = (Math.random() * 1.5 + 1.0) * (Math.random()>0.5?1:-1);
-                        for(let i=0; i<logCount; i++) {
-                            objs.push({
-                                x: (canvas.width / logCount) * i + Math.random() * 50,
-                                type: 'log',
-                                width: 120, // 통나무 너비
-                                speed: speed
-                            });
-                        }
-                    } else {
-                        // 3. 강이 아니거나 레벨이 낮은 경우 도로(road) 생성
-                        type = 'road'; 
-                        color = '#4a4a4a'; 
-                        
-			// ✨ 레벨 3까지는 최대 적 숫자를 2명으로 제한하는 로직입니다.
- 			   let maxEnemies;
-  			  if (currentLevel <= 3) {
-  			      maxEnemies = 2; // 레벨 1~3일 때는 최대 2명
-  			  } else {
-			        // 레벨 4부터는 기존처럼 레벨에 따라 최대 4명까지 늘어납니다.
-			        maxEnemies = Math.min(4, 1 + Math.floor(currentLevel / 2)); 
-			    }
+        // A. 테마 확인
+        let theme = 'road';
+        if (cycle >= 3 && cycle <= 4) theme = 'river';       
+        else if (cycle >= 5 && cycle <= 6) theme = 'court';  
+        else if (cycle >= 7 && cycle <= 8) theme = 'ice';    
+        else if (cycle >= 9) theme = 'cosmic';               
 
-   			 // 실제로 해당 줄에 생성될 적의 수 (1~maxEnemies 사이의 랜덤값)
-   			 const enemyCount = Math.floor(Math.random() * maxEnemies) + 1;
-                        // 기본 속도 상향
-                        const speedMult = 1.0 + (currentLevel * 0.06); 
-                        
-                        for(let i=0; i<enemyCount; i++) {
-                            const enemy = opponentPool[Math.floor(Math.random() * opponentPool.length)];
-                            objs.push({ 
-                                x: Math.random()*(canvas.width-60), 
-                                speed: (Math.random()*1.2+1.5) * speedMult * (Math.random()>0.5?1:-1), 
-                                team: enemy.team, 
-                                name: enemy.name, 
-                                number: enemy.number, 
-                                color: enemy.color, 
-                                isRedBoo: enemy.isRedBoo,  
-                                isPegasus: enemy.isPegasus // 페가수스 인식표 추가
-                            });
-                        }
-                    }
-                } else if (Math.random() > 0.8) {
-                    // 아이템 생성 (바나나 또는 초콜릿)
-                    const r = Math.random();
-                    let itemKey = 'banana';
-                    if (r > 0.5) itemKey = 'choco'; 
-                    objs.push({ 
-                        x: Math.floor(Math.random()*(canvas.width/GRID_SIZE-1))*GRID_SIZE + GRID_SIZE/2, 
-                        type: 'item', 
-                        itemKey: itemKey 
-                    });
+        // B. 강(River) 테마일 때 🌊
+        if (theme === 'river') {
+            const rand = Math.random();
+            
+            if (rand < 0.3) {
+                // [케이스 1] 통나무가 떠내려오는 '물'
+                type = 'river_water'; 
+                color = '#42A5F5'; 
+            } else if (rand < 0.7) {
+                // [케이스 2] 장애물(선수)이 나오는 '강가 땅'
+                type = 'river_land';
+                color = '#81C784'; 
+            } else {
+                // [케이스 3] 안전한 땅
+                type = 'safe';
+                color = '#AED581'; 
+            }
+
+            // 강 테마 적 생성 (물이거나 강가 땅일 때)
+            if (type !== 'safe') {
+                createEnemyInLane(objs, speedMult, laneLevel, type);
+            }
+        } 
+        // C. 다른 테마일 때 (코트, 도로, 얼음, 우주)
+        else {
+             // 🏀 1. 농구 코트 테마
+            if (theme === 'court') {
+                type = 'court'; 
+                color = '#e5b382'; // 코트 바닥색
+                
+                // 60% 확률로 적 생성 (40%는 적 없이 바닥만 코트)
+                if (Math.random() >= 0.4) {
+                     createEnemyInLane(objs, speedMult, laneLevel, type);
                 }
             }
-            lanes.push({ type, color, objects: objs, index: idx });
+            // 🚗 2. 나머지 테마 (Road, Ice, Cosmic)
+            else {
+                if (Math.random() < 0.4) {
+                    type = 'safe'; 
+                    // 안전지대 바닥색
+                    if(theme === 'ice') color = '#E1F5FE';
+                    else if(theme === 'cosmic') color = '#1a1a2e';
+                    else color = '#d29145';
+                } else {
+                    type = theme;
+                    // 위험지대 바닥색
+                    if (type === 'ice') color = '#e0f7fa';
+                    else if (type === 'cosmic') color = '#0a0a2a';
+                    else color = '#4a4a4a';
+                    
+                    // 적 생성
+                    createEnemyInLane(objs, speedMult, laneLevel, type);
+                }
+            }
         }
+    }
+
+    // 4. 아이템 생성
+    if (idx > 3 && Math.random() < 0.2) { 
+        const isChoco = Math.random() > 0.7; 
+        objs.push({ x: Math.random() * (canvas.width - 60), type: 'item', name: isChoco ? 'CHOCO' : 'BANANA', width: 40, speed: 0 });
+    }
+
+    lanes.push({ type, color, objects: objs, index: idx });
+}
+
+// 💡 적 생성 도우미 함수 (반드시 laneLevel을 전달받도록 수정)
+/* --- 2단계 수정: 테마별 적 생성 (길막 방지 포함) --- */
+/* --- [수정] 장애물 생성 함수 (통나무 로직 & 선수 데이터 적용) --- */
+/* --- [수정] 장애물 생성 (강: 물=통나무, 땅=선수) --- */
+/* --- [수정] 장애물 생성 (통나무 + KBL 상대팀 + 마스코트) --- */
+/* --- [수정] 장애물 생성 (sprites.js 데이터 연동 + 마스코트 확률 UP) --- */
+/* --- [수정] 장애물 생성 (sprites.js의 KBL 명단 & 마스코트 연동) --- */
+/* --- [수정] 장애물 생성 함수 (모든 맵에서 KBL 선수/마스코트 등장) --- */
+function createEnemyInLane(objs, speedMult, laneLevel, laneType) {
+    
+    // 🌊 [케이스 1] 강물(Water) -> 통나무 생성 (이건 유지)
+    // 강물 위에는 사람이 걸어다닐 수 없으니 통나무만 나옵니다.
+    if (laneType === 'river_water') {
+        const speed = (1.5 + Math.random()) * speedMult * (Math.random() > 0.5 ? 1 : -1);
+        const count = Math.random() > 0.5 ? 2 : 3;
+        for (let i = 0; i < count; i++) {
+            objs.push({ 
+                x: (i * 250) + Math.random() * 50, 
+                type: 'log', 
+                width: 120, height: 40, 
+                speed: speed 
+            });
+        }
+        return; // 통나무 만들고 함수 종료
+    }
+
+    // 🚗 [케이스 2] 그 외 모든 땅 (도로, 코트, 얼음, 우주, 강가) -> 적 생성
+    const lanes = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+    
+    // 난이도 설정
+    let maxEnemies = 3;
+    if (laneLevel <= 2) maxEnemies = 1;
+    else if (laneLevel <= 4) maxEnemies = 2;
+
+    let count = 0;
+
+    // 🕵️‍♂️ sprites.js 데이터 가져오기
+    const pool = (typeof opponentPool !== 'undefined') ? opponentPool : [];
+    const mascots = pool.filter(p => p.isRedBoo || p.isPegasus);
+    const players = pool.filter(p => !p.isRedBoo && !p.isPegasus);
+
+    for (let i = 0; i < 4; i++) {
+        if (count >= maxEnemies) break;
+
+        if (Math.random() < 0.5) {
+            const laneX = lanes[i] * 60; 
+            
+            // 🔥 [수정] 조건문 삭제! 
+            // 맵 종류(Road, Ice 등) 상관없이 무조건 'player' 타입으로 설정
+            let enemyType = 'player'; 
+            let selectedData = null;
+
+            // 🎲 1. 마스코트 뽑기 (35% 확률)
+            if (Math.random() < 0.225 && mascots.length > 0) {
+                selectedData = mascots[Math.floor(Math.random() * mascots.length)];
+            } 
+            // 🎲 2. KBL 선수 뽑기 (나머지 확률)
+            else if (players.length > 0) {
+                selectedData = players[Math.floor(Math.random() * players.length)];
+            }
+
+            // 실제 객체 생성
+            let finalObj = {
+                x: laneX,
+                type: enemyType,
+                width: 60, height: 60,
+                speed: (2 + Math.random() * 2) * speedMult * (Math.random() > 0.5 ? 1 : -1)
+            };
+
+            // 데이터 적용
+            if (selectedData) {
+                finalObj.name = selectedData.name;
+                finalObj.team = selectedData.team;
+                finalObj.number = selectedData.number;
+                finalObj.color = selectedData.color;
+                finalObj.isRedBoo = selectedData.isRedBoo;
+                finalObj.isPegasus = selectedData.isPegasus;
+            } else {
+                // 데이터 없을 때 기본값 (혹시 모를 오류 방지)
+                finalObj.name = "OPPONENT";
+                finalObj.team = "KBL";
+                finalObj.number = "00";
+                finalObj.color = "#333";
+            }
+
+            objs.push(finalObj);
+            count++;
+        }
+    }
+}
 
         function triggerGameOver(reason) {
             if (gameState === 'DYING' || gameState === 'OVER') return;
@@ -261,327 +375,518 @@ let touchMoved = false; // ✨ 이번 터치에서 이미 움직였는지 체크
         }
 
 function gameLoop() {
-    // 입구 컷 수정: SHOOTING 상태도 통과 가능하게!
     if (gameState !== 'PLAYING' && gameState !== 'SHOOTING') return;
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // --- [모드 1] 슈팅 보너스 스테이지 ---
     if (gameState === 'SHOOTING') {
         shootingTimer++;
+        if (keys['ArrowLeft']) player.currentX -= 8;
+        if (keys['ArrowRight']) player.currentX += 8;
+        player.currentX = Math.max(0, Math.min(canvas.width - 60, player.currentX));
 
-// ⌨️ 키보드 꾹 누르기 조작 (부드러운 이동)
-    if (keys['ArrowLeft']) player.currentX -= 8;  // 왼쪽으로 부드럽게 이동
-    if (keys['ArrowRight']) player.currentX += 8; // 오른쪽으로 부드럽게 이동
-    
-    // 화면 밖으로 나가지 않게 제한
-    player.currentX = Math.max(0, Math.min(canvas.width - 60, player.currentX));
-        // 1. 우주 배경 (반짝이는 별 효과)
         ctx.fillStyle = "#000510"; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "white";
-        for(let i=0; i<30; i++) {
-            let starY = (i * 150 + shootingTimer * 2) % canvas.height;
-            ctx.globalAlpha = 0.3;
-            ctx.beginPath(); ctx.arc((i * 137) % canvas.width, starY, 1, 0, Math.PI*2); ctx.fill();
+        
+        if (Math.random() < 0.04) {
+            const sX = Math.random() * (canvas.width - 50);
+            shootingEnemies.push({ startX: sX, x: sX, y: -50, speed: 3 + Math.random() * 2, theta: Math.random() * Math.PI * 2, amplitude: 30 + Math.random() * 40 });
         }
-        ctx.globalAlpha = 1.0;
 
-        // 2. 적(👾) 생성
-if (Math.random() < 0.04) {
-    const sX = Math.random() * (canvas.width - 50);
-    shootingEnemies.push({ 
-        startX: sX, // 기준점 저장
-        x: sX, 
-        y: -50, 
-        speed: 3 + Math.random() * 2,
-        theta: Math.random() * Math.PI * 2,
-        amplitude: 30 + Math.random() * 40 
-    });
-}
+        if (shootingTimer % 8 === 0) shootingBullets.push({ x: player.currentX + 30, y: canvas.height - 130 });
 
-        // 3. 네온 총알 발사
-        if (shootingTimer % 8 === 0) {
-            shootingBullets.push({ x: player.currentX + 30, y: canvas.height - 130 });
-        }
         shootingBullets.forEach((b, i) => {
             b.y -= 12;
-            ctx.shadowBlur = 15; ctx.shadowColor = "#00ffff"; 
-            ctx.fillStyle = "#00ffff";
-            ctx.fillRect(b.x - 2, b.y, 4, 15);
-            ctx.shadowBlur = 0; 
+            ctx.fillStyle = "#00ffff"; ctx.fillRect(b.x - 2, b.y, 4, 15);
             if (b.y < -20) shootingBullets.splice(i, 1);
         });
 
-        // 4. 적 이동 및 충돌 체크
         shootingEnemies.forEach((en, ei) => {
-            en.y += en.speed; // 1. 아래로 이동
-    
-    // ✨ 2. 지그재그 계산식 적용
-    en.theta += 0.05; // 흔들리는 속도 (이 숫자가 커질수록 더 빨리 파들거립니다)
-    // 실제 x좌표 = 기준 위치 + (사인값 * 흔들림 폭)
-    en.x = en.startX + Math.sin(en.theta) * en.amplitude;
-
-    // 3. 화면 밖으로 너무 나가지 않게 보정
-    en.x = Math.max(0, Math.min(canvas.width - 50, en.x));
-
-    ctx.font = "40px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText("👾", en.x, en.y + 40);
+            en.y += en.speed;
+            en.theta += 0.05;
+            en.x = en.startX + Math.sin(en.theta) * en.amplitude;
+            ctx.font = "40px Arial"; ctx.fillText("👾", en.x, en.y + 40);
 
             shootingBullets.forEach((b, bi) => {
-if (Math.abs(b.x - (en.x + 25)) < 30 && Math.abs(b.y - (en.y + 25)) < 30) {
-    // 💥 1. 이펙트 생성: 텍스트 이펙트 (+5 MP)
-    shootingParticles.push({
-        x: en.x, y: en.y, 
-        text: "+5 MP", 
-        life: 1.0, // 투명도 (1에서 0으로 줄어듦)
-        vx: (Math.random() - 0.5) * 2, // 가로로 살짝 퍼짐
-        vy: -2, // 위로 둥실 떠오름
-        type: 'text'
-    });
-
-    // ✨ 2. 이펙트 생성: 팡 터지는 별 조각들 (5개 정도)
-    for(let i=0; i<5; i++) {
-        shootingParticles.push({
-            x: en.x + 20, y: en.y + 20,
-            life: 1.0,
-            vx: (Math.random() - 0.5) * 6, // 사방으로 튐
-            vy: (Math.random() - 0.5) * 6,
-            size: 2 + Math.random() * 4,
-            type: 'particle'
-        });
-    }
-
-    shootingEnemies.splice(ei, 1);
-    shootingBullets.splice(bi, 1);
-    shootingKills++; totalMP += 5;
-}
+                if (Math.abs(b.x - (en.x + 25)) < 30 && Math.abs(b.y - (en.y + 25)) < 30) {
+                    for(let i=0; i<5; i++) shootingParticles.push({ x: en.x + 20, y: en.y + 20, life: 1.0, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, size: 2+Math.random()*4, type: 'particle' });
+                    shootingEnemies.splice(ei, 1); shootingBullets.splice(bi, 1); shootingKills++; totalMP += 5;
+                }
             });
             if (en.y > canvas.height) shootingEnemies.splice(ei, 1);
         });
 
-// ✨ [새로 추가] 파티클 및 텍스트 이펙트 그리기
-shootingParticles.forEach((p, pi) => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life -= 0.02; // 서서히 사라짐
+        shootingParticles.forEach((p, pi) => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+            ctx.globalAlpha = p.life; ctx.fillStyle = "#00ffff"; ctx.fillRect(p.x, p.y, p.size, p.size);
+            if (p.life <= 0) shootingParticles.splice(pi, 1);
+        });
+        ctx.globalAlpha = 1.0;
 
-    ctx.globalAlpha = p.life; // 투명도 적용
+        const pObj = playerPool.find(p => p.id === selectedId) || playerPool[0];
+        drawCharacter(ctx, pObj, player.currentX, canvas.height - 120, 60, uniformPool[selectedUniformIdx]?.color);
 
-    if (p.type === 'text') {
-        ctx.fillStyle = "#ffff00"; // 노란색 텍스트
-        ctx.font = "bold 20px Galmuri11";
-        ctx.fillText(p.text, p.x, p.y);
-    } else {
-        ctx.fillStyle = "#00ffff"; // 민트색 파편
-        ctx.shadowBlur = 10; ctx.shadowColor = "#00ffff";
-        ctx.fillRect(p.x, p.y, p.size, p.size);
-        ctx.shadowBlur = 0;
+        if (shootingTimer > 720) { alert(`보너스 종료! ${shootingKills}명 격파!`); gameState = 'PLAYING'; syncUI(); }
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
     }
 
-    if (p.life <= 0) shootingParticles.splice(pi, 1);
-});
-ctx.globalAlpha = 1.0; // 투명도 복구
+    // --- [모드 2] 일반 달리기 스테이지 ---
+    cameraY += (player.lane * LANE_HEIGHT - cameraY) * 0.1;
+    const baseY = canvas.height - 250;
+    let onRiver = false, onLog = false, logSpeed = 0;
 
-        // 5. 내 캐릭터 (현재 선택된 캐릭터 유지 + 네온 효과)
-        const pObj = playerPool.find(p => p.id === selectedId) || playerPool[0];
-        const uniformColor = uniformPool[selectedUniformIdx]?.color || "#D70025";
-        ctx.shadowBlur = 20; ctx.shadowColor = "#3b82f6"; 
-        drawCharacter(ctx, pObj, player.currentX, canvas.height - 120, 60, uniformColor);
-        ctx.shadowBlur = 0;
+    lanes.forEach(lane => {
+        const sY = baseY + (cameraY - lane.index * LANE_HEIGHT);
+        if (sY < -LANE_HEIGHT || sY > canvas.height) return;
 
-        // 6. 종료 처리
-        if (shootingTimer > 720) { 
-            alert(`보너스 종료! ${shootingKills}명 격파 성공!`);
-            gameState = 'PLAYING'; syncUI();
-            animationFrameId = requestAnimationFrame(gameLoop);
-            return;
+        // 1. 배경 그리기
+
+if (lane.type === 'court') {
+                    const relIdx = lane.index % LEVEL_DIST; 
+                    const centerX = canvas.width / 2;
+                    // 골대(림)의 대략적인 Y 위치 계산 (하단: 4번 레인 / 상단: 35번 레인)
+                    const bottomHoopY = sY + (relIdx - 4) * LANE_HEIGHT;
+                    const topHoopY = sY + (relIdx - 35) * LANE_HEIGHT;
+                    
+                    // 치수 설정 (픽셀 단위)
+                    const arcRadius = 400;      // 3점 라인 반지름
+                    const paintWidth = 140;     // 빨간색 페인트 존 너비
+                    const whiteBoxWidth = 80;   // 안쪽 하얀색 박스 너비
+                    const borderSize = 45;      // 양옆 검은색 보더 크기
+
+                    // =================================================
+                    // 1. 레이어 1: 바닥 및 보더 (Background)
+                    // =================================================
+                    
+                    // 전체 우드톤 바닥
+                    ctx.fillStyle = "#E8C68E"; 
+                    ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
+
+                    // 양쪽 사이드 블랙 보더
+                    ctx.fillStyle = "#111111"; // 완전 검정보다 살짝 부드러운 검정
+                    ctx.fillRect(0, sY, borderSize, LANE_HEIGHT); // 왼쪽
+                    ctx.fillRect(canvas.width - borderSize, sY, borderSize, LANE_HEIGHT); // 오른쪽
+
+                    // =================================================
+                    // 2. 레이어 2: 텍스트 및 장식 (Decorations)
+                    // =================================================
+
+                    // 🌟 [오른쪽] 금색 별 7개 (V7) - 5칸 간격으로 배치
+                    if ([5, 10, 15, 20, 25, 30, 35].includes(relIdx)) {
+                        ctx.fillStyle = "#FFD700"; 
+                        ctx.font = "24px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                        ctx.fillText("★", canvas.width - (borderSize/2), sY + LANE_HEIGHT/2);
+                    }
+
+// ==========================================================
+                    // 🌟 [핵심 수정 1] 왼쪽 텍스트: "1레인 1글자" 방식 (겹침 완벽 해결)
+                    // 글자를 한 번에 그리지 않고, 레인 번호에 맞춰 한 글자씩만 그립니다.
+                    // 절대 겹치지 않고 매우 깔끔하게 나옵니다.
+                    // ==========================================================
+                    const leftText = "HYUNDAI MOBIS PHOEBUS"; // 공백 포함 21자
+                    const startLane = 8; // 8번 레인부터 글자 시작 (H)
+
+                    // 현재 레인 번호(relIdx)가 글자 범위 안에 있는지 확인
+                    const charIndex = relIdx - startLane;
+
+                    if (charIndex >= 0 && charIndex < leftText.length) {
+                        const char = leftText[charIndex];
+                        
+                        // 공백이 아닐 때만 그리기
+                        if (char !== " ") {
+                            ctx.save();
+                            // 현재 레인의 왼쪽 보더 정중앙으로 이동
+                            ctx.translate(borderSize / 2, sY + LANE_HEIGHT / 2);
+                            ctx.rotate(-Math.PI / 2); // 90도 회전 (아래에서 위로 읽기)
+                            
+                            ctx.fillStyle = "white";
+                            ctx.font = "bold 28px Galmuri11"; 
+                            ctx.textAlign = "center"; 
+                            ctx.textBaseline = "middle";
+                            ctx.fillText(char, 0, 0); // 글자 하나 콕 박기
+                            ctx.restore();
+                        }
+                    }
+
+                    // =================================================
+                    // 3. 레이어 3: 페인트 존 (Paint Zone - Red & White)
+                    // =================================================
+                    const mobisRed = "#D50032"; 
+
+                    // --- [하단 구역] (0 ~ 6번 레인) ---
+                    if (relIdx >= 0 && relIdx <= 5) {
+                        // 빨간색 박스 (전체)
+                        ctx.fillStyle = mobisRed;
+                        ctx.fillRect(centerX - (paintWidth/2), sY, paintWidth, LANE_HEIGHT);
+
+                        // 하얀색 박스 (골대 밑 강조 구역) - 1~3번 레인에 위치
+                        if (relIdx >= 4 && relIdx <= 5) {
+                            ctx.fillStyle = "white";
+                            ctx.fillRect(centerX - (whiteBoxWidth/2), sY, whiteBoxWidth, LANE_HEIGHT);
+                        }
+                    }
+
+                    // --- [상단 구역] (33 ~ 39번 레인) ---
+                    if (relIdx >= 34 && relIdx <= 39) {
+                        // 빨간색 박스
+                        ctx.fillStyle = mobisRed;
+                        ctx.fillRect(centerX - (paintWidth/2), sY, paintWidth, LANE_HEIGHT);
+
+                        // 하얀색 박스 - 36~38번 레인에 위치
+                        if (relIdx >= 34 && relIdx <= 35) {
+                            ctx.fillStyle = "white";
+                            ctx.fillRect(centerX - (whiteBoxWidth/2), sY, whiteBoxWidth, LANE_HEIGHT);
+                        }
+                    }
+
+                    // =================================================
+                    // 4. 레이어 4: 라인 드로잉 (White Lines)
+                    // =================================================
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 4;
+
+                    // 사이드 라인 (보더 경계선)
+                    ctx.beginPath();
+                    ctx.moveTo(borderSize, sY); ctx.lineTo(borderSize, sY + LANE_HEIGHT);
+                    ctx.moveTo(canvas.width - borderSize, sY); ctx.lineTo(canvas.width - borderSize, sY + LANE_HEIGHT);
+                    ctx.stroke();
+
+                    // --- [하단 라인 디테일] ---
+                    // 베이스라인
+                    if (relIdx === 0) { 
+                        ctx.beginPath(); ctx.moveTo(borderSize, sY); ctx.lineTo(canvas.width - borderSize, sY); ctx.stroke();
+                    }
+                    // 페인트존 세로선
+                    if (relIdx >= 0 && relIdx <= 5) {
+                        ctx.beginPath();
+                        ctx.moveTo(centerX - (paintWidth/2), sY); ctx.lineTo(centerX - (paintWidth/2), sY + LANE_HEIGHT);
+                        ctx.moveTo(centerX + (paintWidth/2), sY); ctx.lineTo(centerX + (paintWidth/2), sY + LANE_HEIGHT);
+                        ctx.stroke();
+                    }
+                    // 자유투 라인 (가로선 + 반원)
+                    if (relIdx === 6) {
+                        ctx.beginPath(); ctx.moveTo(centerX - (paintWidth/2), sY + LANE_HEIGHT); ctx.lineTo(centerX + (paintWidth/2), sY + LANE_HEIGHT); ctx.stroke();
+                        ctx.beginPath(); ctx.arc(centerX, sY + LANE_HEIGHT, (paintWidth/2), 0, Math.PI, true); ctx.stroke();
+                    }
+                    // 3점슛 라인 (곡선)
+                    if (relIdx <= 11) {
+                        ctx.save(); ctx.beginPath(); ctx.rect(borderSize, sY, canvas.width - borderSize*2, LANE_HEIGHT); ctx.clip();
+                        ctx.beginPath(); ctx.arc(centerX, bottomHoopY, arcRadius, 0, Math.PI * 2); ctx.stroke();
+                        ctx.restore();
+                    }
+                    // ✨ 노 차지 존 (No Charge Zone) 반원 (스마일 라인)
+                    // 골대 중심(약 4번 레인 바닥) 아래에 그려지는 반원
+                    if (relIdx === 4) {
+                        ctx.beginPath();
+                        ctx.arc(centerX, sY + LANE_HEIGHT + 39, 30, 0, Math.PI, true); // 아래로 볼록
+                        ctx.stroke();
+                    }
+
+                    // --- [중앙 구역 (Center)] ---
+                    if (relIdx >= 18 && relIdx <= 22) {
+                        const midY = sY + (relIdx - 20) * LANE_HEIGHT + (LANE_HEIGHT / 2);
+                        ctx.save(); ctx.beginPath(); ctx.rect(borderSize, sY, canvas.width - borderSize*2, LANE_HEIGHT); ctx.clip();
+                        
+                        if (relIdx === 20) {
+                            // 센터 라인
+                            ctx.beginPath(); ctx.moveTo(borderSize, midY); ctx.lineTo(canvas.width - borderSize, midY); ctx.stroke();
+                            // 중앙 로고 (빨간 원)
+                            ctx.fillStyle = mobisRed;
+                            ctx.beginPath(); ctx.arc(centerX, midY, 60, 0, Math.PI * 2); ctx.fill();
+                            ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.stroke();
+                            // PHOEBUS 텍스트
+                            ctx.fillStyle = "white"; ctx.font = "bold 16px Galmuri11"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                            ctx.fillText("PHOEBUS", centerX, midY);
+                        } else {
+                            // 센터 서클 외곽선
+                            ctx.beginPath(); ctx.arc(centerX, midY, 60, 0, Math.PI * 2); ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+
+                    // --- [상단 라인 디테일] ---
+                    // 자유투 라인
+                    if (relIdx === 33) {
+                        ctx.beginPath(); ctx.moveTo(centerX - (paintWidth/2), sY); ctx.lineTo(centerX + (paintWidth/2), sY); ctx.stroke();
+                        ctx.beginPath(); ctx.arc(centerX, sY, (paintWidth/2), 0, Math.PI, false); ctx.stroke();
+                    }
+                    // 페인트존 세로선
+                    if (relIdx >= 34 && relIdx <= 39) {
+                        ctx.beginPath();
+                        ctx.moveTo(centerX - (paintWidth/2), sY); ctx.lineTo(centerX - (paintWidth/2), sY + LANE_HEIGHT);
+                        ctx.moveTo(centerX + (paintWidth/2), sY); ctx.lineTo(centerX + (paintWidth/2), sY + LANE_HEIGHT);
+                        ctx.stroke();
+                    }
+                    // 3점슛 라인
+                    if (relIdx >= 28) {
+                        ctx.save(); ctx.beginPath(); ctx.rect(borderSize, sY, canvas.width - borderSize*2, LANE_HEIGHT); ctx.clip();
+                        ctx.beginPath(); ctx.arc(centerX, topHoopY, arcRadius, 0, Math.PI * 2); ctx.stroke();
+                        ctx.restore();
+                    }
+                    // ✨ 노 차지 존 반원 (상단)
+                    if (relIdx === 36) {
+                        ctx.beginPath();
+                        ctx.arc(centerX, sY +40, 30, 0, Math.PI, false); // 위로 볼록
+                        ctx.stroke();
+                    }
+                    // 베이스라인 (종료)
+                    if (relIdx === 39) {
+                        ctx.beginPath(); ctx.moveTo(borderSize, sY + LANE_HEIGHT); ctx.lineTo(canvas.width - borderSize, sY + LANE_HEIGHT); ctx.stroke();
+                    }
+
+                    // 나무 질감 (투명도 낮춤)
+                    ctx.strokeStyle = "rgba(0,0,0,0.04)"; ctx.lineWidth = 1;
+                    for(let i=borderSize; i<canvas.width-borderSize; i+=20) { 
+                        ctx.beginPath(); ctx.moveTo(i, sY); ctx.lineTo(i, sY+LANE_HEIGHT); ctx.stroke(); 
+                    }
+                
+
+        } else {
+            ctx.fillStyle = lane.color; ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
         }
 
-        animationFrameId = requestAnimationFrame(gameLoop);
-        return; 
-    }
-    // --- [여기까지가 슈팅 모드, 아래는 기존 달리기 로직] ---  
-            cameraY += (player.lane * LANE_HEIGHT - cameraY) * 0.1;
-            const baseY = canvas.height - 250;
+   // 2. 특수 지형 효과 (배경색 덧칠)
+        if (lane.type === 'ice') {
+            // ❄️ 빙판 효과
+            let iceGrad = ctx.createLinearGradient(0, sY, 0, sY + LANE_HEIGHT);
+            iceGrad.addColorStop(0, "rgba(255, 255, 255, 0.1)"); 
+            iceGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.4)"); 
+            iceGrad.addColorStop(1, "rgba(255, 255, 255, 0.1)");
+            ctx.fillStyle = iceGrad; ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
+        } 
+        else if (lane.type === 'cosmic') {
+            // 🌌 우주 배경 (진한 남색 + 별)
+            ctx.fillStyle = "#020014"; ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
+            for(let i=0; i<3; i++) { 
+                ctx.fillStyle="white"; 
+                ctx.fillRect((lane.index*150+i*100)%canvas.width, sY+40, 2, 2); 
+            }
+        } 
+// ... (위쪽 court, ice, cosmic 코드들은 그대로 두세요)
 
-            let onRiver = false;
-            let onLog = false;
-            let logSpeed = 0;
+        // 🌊 [추가] 강물 디자인: 찰랑거리는 물결 효과
+        else if (lane.type === 'river_water') {
+            // 1. 깊은 물 색깔 (베이스)
+            ctx.fillStyle = "#2196F3"; 
+            ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
 
-            lanes.forEach(lane => {
-                const sY = baseY + (cameraY - lane.index * LANE_HEIGHT);
-                if (sY < -LANE_HEIGHT || sY > canvas.height) return;
+            // 2. 넘실거리는 물결 (밝은색 + 움직임)
+            const time = Date.now() / 300; // 물결 속도
+            ctx.fillStyle = "#64B5F6"; // 밝은 물색
+            
+            // 물결 줄무늬 그리기
+            for (let i = -50; i < canvas.width; i += 60) {
+                // Math.sin으로 물결 모양 만들기
+                const waveY = Math.sin(time + (i * 0.05)) * 8; 
+                ctx.fillRect(i, sY + 30 + waveY, 40, 8); 
                 
-                // 배경 그리기
-                ctx.fillStyle = lane.color; 
-                ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
+                // 작은 물결 하나 더
+                ctx.fillRect(i + 30, sY + 50 - waveY, 20, 5); 
+            }
 
-                // 강(River) 물결 효과 추가
-                if (lane.type === 'river') {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-                    const time = Date.now() / 500;
-                    for(let i=0; i<canvas.width; i+=40) {
-                        const waveY = Math.sin(i * 0.05 + time) * 5 + 10;
-                        ctx.fillRect(i, sY + 20 + waveY, 20, 2);
-                        ctx.fillRect(i + 20, sY + 50 - waveY, 15, 2);
+            // 3. 반짝이는 윤슬 (흰색 점)
+            ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+            for (let i = 0; i < 5; i++) {
+                // 반짝이가 흘러가는 효과
+                const sparkleX = (lane.index * 130 + i * 90 + Date.now()/4) % (canvas.width + 50) - 20;
+                const sparkleY = sY + 15 + (i * 12);
+                ctx.fillRect(sparkleX, sparkleY, 4, 4);
+            }
+        }
+
+        // ... (아래 else { ctx.fillStyle = lane.color ... } 는 그대로 두세요)
+
+// 🌊 2. 강 위의 통나무 (River & Log) - 디자인 업그레이드!
+        // 3. 객체 그리기 및 충돌 판정
+        const isPlayerLane = (player.lane === lane.index);
+        if (isPlayerLane && lane.type === 'river_water') onRiver = true;
+
+        lane.objects.forEach((obj, idx) => {
+// 👇 [여기서부터 복사] 아이템 그리기 및 획득 로직
+            if (obj.type === 'item') {
+                // 1. 둥실둥실 효과
+                const floatY = Math.sin(Date.now() / 200) * 5; 
+                const itemSize = 40; 
+
+                // 2. 바나나 vs 초코바 데이터 선택
+                let data, pal;
+                if (obj.name === 'CHOCO') {
+                    data = ChocoSpriteData;
+                    pal = ChocoPalette;
+                } else {
+                    data = BananaSpriteData;
+                    pal = BananaPalette;
+                }
+
+                // 3. 그림자 그리기
+                ctx.fillStyle = "rgba(0,0,0,0.3)";
+                ctx.beginPath();
+                ctx.ellipse(obj.x + 10 + (itemSize/2), sY + 50, 15, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 4. 픽셀 아트 그리기
+                // sprites.js에 데이터가 잘 들어있다면 그려짐
+                if (typeof drawCustomSprite === "function" && data && pal) {
+                     drawCustomSprite(ctx, data, pal, obj.x + 10, sY + 20 + floatY, itemSize);
+                }
+
+                // 5. 냠냠 먹기 (충돌 판정)
+                if (isPlayerLane) {
+                    const dist = Math.abs((player.currentX + 30) - (obj.x + 30));
+                    if (dist < 40) { // 닿았으면
+                        lane.objects.splice(idx, 1); // 삭제
+                        
+                        if (obj.name === 'CHOCO') {
+                            totalMP += 20; 
+                                 } else {
+                            totalMP += 10; 
+
+                        }
+                        syncUI(); // 점수판 갱신
                     }
                 }
+                return; // 아이템은 여기서 끝! (아래 적 코드 실행 안 함)
+            }
+            // 👆 [여기까지 복사]
+            if (['road', 'court', 'ice', 'cosmic', 'river_land'].includes(lane.type)) {
+                obj.x += obj.speed;
+                if (obj.x > canvas.width + 100) obj.x = -150; if (obj.x < -150) obj.x = canvas.width + 100;
+                let drawX = obj.x;
+                if (lane.type === 'court') drawX += Math.sin(Date.now() / 100) * 3;
+                drawCharacter(ctx, obj, drawX, sY + 10, 60, obj.color, obj.number);
+
+         // --- [이름표: 글자 길이에 맞춤] ---
+                const teamName = obj.team || "TEAM";
+                const playerName = obj.name || "PLAYER";
+
+                // 1. 글자 크기 미리 계산
+                ctx.font = "bold 8px Galmuri11"; 
+                const teamWidth = ctx.measureText(teamName).width;
                 
-                // 플레이어가 현재 레인에 있는지 확인
-                const isPlayerLane = (player.lane === lane.index);
-                if (isPlayerLane && lane.type === 'river') onRiver = true;
+                ctx.font = "bold 10px Galmuri11";
+                const playerWidth = ctx.measureText(playerName).width;
 
-                const objectsToDraw = [...lane.objects]; 
+                // 2. 박스 너비 결정 (더 긴 글자 기준 + 여백)
+                const boxWidth = Math.max(teamWidth, playerWidth) + 8;
+                const boxHeight = 24; 
                 
-                objectsToDraw.forEach((obj, idx) => {
-                    if (lane.type === 'road') {
-                        obj.x += obj.speed; if (obj.x > canvas.width + 100) obj.x = -150; if (obj.x < -150) obj.x = canvas.width + 100;
-                        drawCharacter(ctx, obj, obj.x, sY + 10, 60, obj.color, obj.number);
-                        
-                        ctx.fillStyle = "rgba(0,0,0,0.5)";
-                        const text = `[${obj.team}] ${obj.name}`;
-                        const textWidth = ctx.measureText(text).width;
-                        ctx.fillRect(obj.x + 30 - textWidth/2 - 4, sY + 68, textWidth + 8, 14);
-                        ctx.fillStyle = 'white'; ctx.font = 'normal 10px Galmuri11'; ctx.textAlign = 'center'; ctx.fillText(text, obj.x + 30, sY + 79);
+                // 3. 중앙 정렬 좌표 계산
+                const boxX = drawX + 30 - (boxWidth / 2);
+                const boxY = sY + 68;
 
-                        if (invulnerable === 0 && isPlayerLane && player.currentX + 40 > obj.x && player.currentX + 20 < obj.x + 60) {
-                            lives--; syncUI(); 
-                            const actions = ['블락', '스틸', '굿 파울'];
-                            const action = actions[Math.floor(Math.random() * actions.length)];
-                            const msg = `[${obj.team}] ${obj.name}의 ${action}!`;
-                            
-                            if (lives <= 0) triggerGameOver(msg); 
-                            else { 
-                                showDamageMsg(msg); 
-                                invulnerable = 60; 
-                                const container = document.getElementById('game-wrapper');
-                                container.classList.remove('hit-effect');
-                                void container.offsetWidth; 
-                                container.classList.add('hit-effect');
-                                const flash = document.getElementById('flash-overlay');
-                                flash.style.backgroundColor = 'rgba(255, 0, 0, 0.4)';
-                                setTimeout(() => flash.style.backgroundColor = 'transparent', 150);
-                            }
-                        }
-                    } else if (lane.type === 'river' && obj.type === 'log') {
-                        // 통나무 이동
-                        obj.x += obj.speed;
-                        if (obj.x > canvas.width + 100) obj.x = -150; 
-                        if (obj.x < -150) obj.x = canvas.width + 100;
-                        
-                        // 통나무 그리기 (질감 추가)
-                        // 메인 몸통
-                        ctx.fillStyle = "#8B4513";
-                        ctx.fillRect(obj.x, sY + 20, obj.width, 40);
-                        // 질감 (나뭇결)
-                        ctx.fillStyle = "#5D2906"; // 어두운 색
-                        for(let i=0; i<obj.width; i+=10) {
-                            ctx.fillRect(obj.x + i, sY + 25, 2, 30); // 세로 줄무늬
-                            if(i % 30 === 0) ctx.fillRect(obj.x + i, sY + 35, 6, 6); // 옹이
-                        }
-                        // 하이라이트
-                        ctx.fillStyle = "#A0522D";
-                        ctx.fillRect(obj.x, sY + 20, obj.width, 4);
+                // 4. 배경 박스 그리기
+                ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
-                        // 플레이어와 충돌 확인 (통나무 위에 있는지)
-                        if (isPlayerLane) {
-                            const pCenter = player.currentX + 30;
-                            if (pCenter > obj.x && pCenter < obj.x + obj.width) {
-                                onLog = true;
-                                logSpeed = obj.speed;
-                            }
-                        }
-                    } else if (obj.type === 'item') {
-                        if (obj.itemKey === 'banana') drawCustomSprite(ctx, BananaSpriteData, BananaPalette, obj.x - 15, sY + 25, 30);
-                        else if (obj.itemKey === 'choco') drawCustomSprite(ctx, ChocoSpriteData, ChocoPalette, obj.x - 15, sY + 25, 30);
-                        
-                        if (isPlayerLane && Math.abs(player.currentX + 30 - obj.x) < 40) { lane.objects.splice(idx, 1); totalMP += 10; syncUI(); }
-} else if (obj.type === 'audience' && obj.char) {
-    // 1. 기준 높이 설정 (이 숫자 하나로 팻말 전체 높이를 조절합니다!)
-    const signY = sY + 30; // 더 올리고 싶으면 숫자를 키우세요 (예: sY - 50)
+                // 5. 텍스트 그리기
+                ctx.textAlign = "center";
+                
+                // 팀 이름 (위)
+                ctx.fillStyle = "#FFD700"; // 금색
+                ctx.font = "bold 8px Galmuri11";
+                ctx.fillText(teamName, drawX + 30, boxY + 9);
 
-    // 2. 팻말 지지대 (손잡이)
-    ctx.fillStyle = "#5D4037";
-    ctx.fillRect(obj.x + 18, signY + 30, 4, 20); // 팻말 바로 아래에 붙게 설정
+                // 선수 이름 (아래)
+                ctx.fillStyle = "white"; // 흰색
+                ctx.font = "bold 10px Galmuri11";
+                ctx.fillText(playerName, drawX + 30, boxY + 20);   
 
-    // 3. 팻말 판 (하얀색 사각형)
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(obj.x, signY, 40, 30);
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(obj.x, signY, 40, 30);
+                // 정밀 충돌 판정
+                const pLeft = player.currentX + 10, pRight = player.currentX + 50; 
+                const eLeft = obj.x + 18, eRight = obj.x + 42; 
 
-    // 4. 글자 그리기 (PixelNumbers 활용)
-    ctx.fillStyle = "#D70025";
-    const d = PixelNumbers[obj.char];
-    if(d) {
-        const pixelSize = 4;
-        const charWidth = 5 * pixelSize;  // 20
-        const charHeight = 5 * pixelSize; // 20
-        
-        // 팻말 판(signY)의 정중앙에 글자가 오도록 계산합니다.
-        const charX = obj.x + (40 - charWidth) / 2;
-        const charY = signY + (30 - charHeight) / 2; 
-        
-        d.forEach((row, ri) => row.forEach((p, ci) => { 
-            if(p) ctx.fillRect(charX + ci * pixelSize, charY + ri * pixelSize, pixelSize, pixelSize); 
-        }));
-    }
+if (invulnerable === 0 && isPlayerLane && pRight > eLeft && pLeft < eRight) {
+    lives--; syncUI();
+    triggerHitEffect(); // 👈 ✨ [여기!] 이 한 줄을 꼭 넣어주세요!
+    
+    const actions = ['블락', '스틸', '굿 파울'];
+    showDamageMsg(`[${obj.team}] ${obj.name}의 ${actions[Math.floor(Math.random()*3)]}!`);
+    if (lives <= 0) triggerGameOver("파울 아웃!"); else invulnerable = 60;
 }
-                });
-            });
+      // ✨ 수정된 통나무 코드 (여기에 넣어야 obj 에러가 안 납니다!)
+} else if (lane.type === 'river_water' && obj.type === 'log') {
+    obj.x += obj.speed;
+    if (obj.x > canvas.width + 100) obj.x = -150;
+    if (obj.x < -150) obj.x = canvas.width + 100;
 
-            // 강에 있을 때 로직 처리
-            if (onRiver) {
-                if (onLog) {
-                    // 통나무 위에 있으면 같이 이동
-                    player.targetX += logSpeed;
-                    player.currentX += logSpeed;
-                } else if (invulnerable === 0) {
-                    // 물에 빠짐
-                    lives--; syncUI();
-                    showDamageMsg("으악! 물에 빠졌다!");
-                    invulnerable = 60; // 무적 시간 부여 (헤엄치는 시간)
-                    
-                    const container = document.getElementById('game-wrapper');
-                    container.classList.remove('hit-effect');
-                    void container.offsetWidth; 
-                    container.classList.add('hit-effect');
-                    const flash = document.getElementById('flash-overlay');
-                    flash.style.backgroundColor = 'rgba(0, 0, 255, 0.4)';
-                    setTimeout(() => flash.style.backgroundColor = 'transparent', 150);
+    // 🎨 통나무 디자인
+    ctx.fillStyle = "#8D6E63"; // 나무색
+    
+    // 1. 몸통
+    ctx.fillRect(obj.x, sY + 20, obj.width, 40);
+    
+    // 2. 양쪽 끝 둥글게
+    ctx.beginPath(); ctx.arc(obj.x, sY + 40, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(obj.x + obj.width, sY + 40, 20, 0, Math.PI * 2); ctx.fill();
 
-                    if (lives <= 0) triggerGameOver("익사!");
-                }
+    // 3. 나무 껍질 무늬
+    ctx.fillStyle = "#5D4037"; 
+    ctx.fillRect(obj.x + 20, sY + 20, 10, 40);
+    ctx.fillRect(obj.x + 60, sY + 20, 15, 40);
+    ctx.fillRect(obj.x + obj.width - 30, sY + 20, 8, 40);
+
+    // 4. 하이라이트
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fillRect(obj.x + 5, sY + 25, obj.width - 10, 5);
+
+// 5. 나이테
+    ctx.fillStyle = "#D7CCC8";
+    ctx.beginPath(); ctx.ellipse(obj.x, sY + 40, 5, 15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(obj.x + obj.width, sY + 40, 5, 15, 0, 0, Math.PI * 2); ctx.fill();
+
+    // ✨ [수정] 탑승 판정 널널하게 변경 (+20px 여유)
+    // 기존: (player.currentX + 30) > obj.x ...
+    // 수정: (obj.x - 20) ~ (obj.x + width + 20) 범위까지 인정!
+    if (isPlayerLane && 
+        (player.currentX + 30) > (obj.x - 20) && 
+        (player.currentX + 30) < (obj.x + obj.width + 20)) { 
+        onLog = true; 
+        logSpeed = obj.speed; 
+    }
+
+
+
+            } else if (obj.type === 'audience') {
+                const signY = sY + 30; ctx.fillStyle = "#FFFFFF"; ctx.fillRect(obj.x, signY, 40, 30);
+                ctx.strokeStyle = "#000000"; ctx.strokeRect(obj.x, signY, 40, 30);
+                const d = PixelNumbers[obj.char]; if(d) { ctx.fillStyle = "#D70025"; d.forEach((row, ri) => row.forEach((p, ci) => { if(p) ctx.fillRect(obj.x + 10 + ci * 4, signY + 5 + ri * 4, 4, 4); })); }
             }
+        });
+    });
 
-            player.currentX += (player.targetX - player.currentX) * 0.35;
-            const jY = Math.sin((Math.abs(player.lane * LANE_HEIGHT - cameraY) / LANE_HEIGHT) * Math.PI) * 50;
-            const pObj = playerPool.find(p => p.id === selectedId) || playerPool[0];
 
-            // 샷클락 감소 속도 상향 (기존보다 빠르게)
-            // 레벨 1 기준 10초 버팀 -> 약 0.17 감소
-            const decayAccel = Math.min(0.5, 0.12 + (currentLevel * 0.02));
-            shotClock -= decayAccel;
-            if (shotClock <= 0) { 
-                lives--; syncUI(); 
-                const violations = ['샷클락 바이얼레이션', '하프코트 바이얼레이션', '더블 드리블'];
-                const violation = violations[Math.floor(Math.random() * violations.length)];
-                const msg = `${pObj.name}의 ${violation}!`;
-                
-                if (lives <= 0) triggerGameOver(msg); else { showDamageMsg(msg); shotClock = 100; } 
-            }
-            if (invulnerable > 0) invulnerable--;
-            document.getElementById('ui-shotclock').style.width = shotClock + '%';
-            
-            // 유니폼 색상 적용하여 플레이어 그리기 (안전장치 추가)
-            const uniformInfo = uniformPool[selectedUniformIdx];
-            const currentUniformColor = uniformInfo ? uniformInfo.color : "#D70025";
-            drawCharacter(ctx, pObj, player.currentX, baseY - jY + 10, 60, currentUniformColor);
-            
-            animationFrameId = requestAnimationFrame(gameLoop);
-        }
+if (onRiver && !onLog && invulnerable === 0) { 
+    lives--; syncUI(); 
+    triggerHitEffect(); // 👈 ✨ [여기!] 물에 빠질 때도 번쩍!
+    
+    showDamageMsg("으악! 물에 빠졌다!"); 
+    invulnerable = 60; 
+    if (lives <= 0) triggerGameOver("익사!"); 
+}
+
+    if (onLog) { player.targetX += logSpeed; player.currentX += logSpeed; }
+
+    const currentLane = lanes.find(l => l.index === player.lane);
+    player.currentX += (player.targetX - player.currentX) * (currentLane?.type === 'ice' ? 0.07 : 0.35);
+
+    const jY = Math.sin((Math.abs(player.lane * LANE_HEIGHT - cameraY) / LANE_HEIGHT) * Math.PI) * 50;
+    const pObj = playerPool.find(p => p.id === selectedId) || playerPool[0];
+
+    shotClock -= Math.min(0.5, 0.12 + (currentLevel * 0.02));
+    if (shotClock <= 0) { 
+        lives--; syncUI(); 
+        const v = ['24초 바이얼레이션', '하프코트 바이얼레이션', '더블 드리블'];
+        showDamageMsg(`${pObj.name}의 ${v[Math.floor(Math.random()*3)]}!`);
+        if (lives <= 0) triggerGameOver("타임아웃!"); else { shotClock = 100; }
+    }
+    if (invulnerable > 0) invulnerable--;
+    document.getElementById('ui-shotclock').style.width = shotClock + '%';
+    drawCharacter(ctx, pObj, player.currentX, baseY - jY + 10, 60, uniformPool[selectedUniformIdx]?.color);
+    
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
 
         function startGame() {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -601,24 +906,57 @@ ctx.globalAlpha = 1.0; // 투명도 복구
             gameLoop();
         }
 
-        function moveForward() {
-            if (gameState !== 'PLAYING') return;
-            player.lane++; score = player.lane; totalMP += 1; shotClock = 100; 
-            if (player.lane > 0 && player.lane % LEVEL_DIST === 0) { gameState = 'QUIZ'; showQuiz(); }
-            if (lanes.length < player.lane + 20) addLane(lanes.length); 
-            syncUI();
-        }
+/* --- [수정] 앞으로 이동 (맵 겹침 버그 수정 & 렉 방지 유지) --- */
+function moveForward() {
+    if (gameState !== 'PLAYING') return;
+    
+    player.lane++; 
+    score = player.lane; 
+    totalMP += 1; 
+    shotClock = 100; 
 
-/* --- 1단계: 뒤로 가기 함수 --- */
+    // 퀴즈 및 레벨업 체크
+    if (player.lane > 0 && player.lane % LEVEL_DIST === 0) { 
+        gameState = 'QUIZ'; 
+        showQuiz(); 
+    }
+
+    // 🏗️ [버그 수정 핵심] 길 만들기 로직 변경
+    // 기존: addLane(lanes.length) -> 삭제된 개수만큼 번호가 밀려서 겹침 발생
+    // 수정: 현재 존재하는 '가장 마지막 레인 번호'를 찾아서 그 다음 번호를 생성
+    const lastLaneIndex = lanes.length > 0 ? lanes[lanes.length - 1].index : -1;
+    
+    // 내 위치보다 20칸 앞까지 길이 없으면 새로 추가
+    if (lastLaneIndex < player.lane + 20) {
+        addLane(lastLaneIndex + 1);
+    }
+    
+    // 🧹 [렉 방지] 지나온 길 삭제
+    if (lanes.length > 50 && player.lane > 20) {
+        // 화면 밖으로 벗어난(내 위치 - 15칸) 길을 삭제
+        lanes = lanes.filter(l => l.index > player.lane - 15);
+    }
+
+    syncUI();
+}
+
+/* --- [수정] 뒤로 이동 (레벨 제한 기능 추가) --- */
 function moveBackward() {
     if (gameState !== 'PLAYING') return;
     
-    // 0번 레인보다 뒤로는 갈 수 없게 막습니다.
-    if (player.lane > 0) {
+    // 🚫 [핵심: 레벨 벽] 현재 레벨의 시작점 계산
+    // 레벨 1: 0, 레벨 2: 40, 레벨 3: 80 ...
+    const minAllowedLane = (currentLevel - 1) * LEVEL_DIST;
+
+    // 시작점보다 앞서 있을 때만 뒤로 갈 수 있음
+    if (player.lane > minAllowedLane) {
         player.lane--;
-        score = player.lane; // 현재 위치를 점수에 반영
-        shotClock = 100;      // 뒤로 갈 때도 샷클락은 리셋해주는 게 공정합니다.
+        score = player.lane; // 점수도 깎임 (공정하게)
+        shotClock = 100;     // 샷클락 리셋
         syncUI();
+    } else {
+        // 못 간다는 신호 (선택 사항: 띵~ 소리나 메시지)
+        // showDamageMsg("뒤로 갈 수 없습니다!"); 
     }
 }
 
@@ -666,10 +1004,13 @@ function moveBackward() {
     
     syncUI(); 
 }
-       function continueGame() {
+function continueGame() {
     currentLevel++;
     shotClock = 100;
+    // 💡 초기화 코드를 모두 지웠습니다. 이제 플레이어는 그 자리에서 계속 전진합니다.
+
     document.getElementById('overlay-clear').classList.add('hidden');
+    // ... (이하 슈팅 보너스 체크 로직)
 
     // 🚀 5의 배수 레벨(5, 10, 15...)이면 슈팅 보너스 스테이지 시작!
     if (currentLevel % 5 === 0) {
@@ -730,11 +1071,20 @@ function startShootingBonus() {
             totalMP -= 500; lives++; syncUI(); showDamageMsg("생명 충전 완료! ❤️");
         }
 
-        function scoutPlayer() {
+      function scoutPlayer() {
             const avail = playerPool.filter(p => !myCollection.has(p.id));
             if (avail.length === 0) return showDamageMsg("모든 선수를 영입했습니다!");
-            if (totalMP < 100) return showDamageMsg("MP 부족!");
-            totalMP -= 100; const p = avail[Math.floor(Math.random() * avail.length)];
+
+            // 👇 [수정] 여기에 원하는 가격을 입력하세요! (예: 500)
+            const scoutPrice = 200; 
+
+            // 👇 100이라고 적혀있던 곳을 scoutPrice로 바꿨습니다.
+            if (totalMP < scoutPrice) return showDamageMsg(`MP 부족! (${scoutPrice} 필요)`);
+            
+            // 👇 여기도 100을 지우고 scoutPrice로 바꿨습니다.
+            totalMP -= scoutPrice;
+
+const p = avail[Math.floor(Math.random() * avail.length)];
             myCollection.add(p.id); saveGameData(); syncUI();
             const modal = document.getElementById('modal'); modal.classList.remove('hidden');
             document.getElementById('scout-result').innerHTML = `
@@ -782,13 +1132,18 @@ function startShootingBonus() {
             });
         }
 
-        function selectUniform(id) {
-            selectedUniformIdx = id;
-            saveGameData();
-            renderEquipment();
-            renderPreview();
-        }
+// 👇 유니폼 선택 함수 (수정됨: 클릭 즉시 화면 갱신)
+function selectUniform(id) {
+    // 1. 선택한 유니폼 번호 저장
+    selectedUniformIdx = id; 
+    saveGameData(); 
 
+    // 2. 🌟 핵심: 상점의 유니폼 목록을 다시 그려라! (이게 없어서 안 바뀌었던 겁니다)
+    // 방금 전 상점 코드에 추가했던 그 함수를 여기서 호출합니다.
+    if (typeof renderShopUniforms === "function") {
+        renderShopUniforms(); 
+    }
+}
         function selectPlayerFromRoster(id) { 
             selectedId = id; 
             saveGameData(); 
@@ -888,5 +1243,72 @@ function resetAllData() {
             alert("데이터가 모두 사라졌습니다. 처음부터 다시 시작합니다!");
             location.reload();
         }
+    }
+}
+
+// 👇 [복사] 상점 탭 기능 (script.js 맨 아래에 추가)
+function switchShopTab(tabName) {
+    // 1. 모든 탭 숨기기
+    document.getElementById('shop-tab-scout').classList.add('hidden');
+    document.getElementById('shop-tab-items').classList.add('hidden');
+    document.getElementById('shop-tab-uniform').classList.add('hidden');
+    
+    // 2. 버튼 활성 표시 끄기
+    document.querySelectorAll('.shop-tab-btn').forEach(btn => btn.classList.remove('active'));
+
+    // 3. 선택한 탭 켜기
+    const btns = document.querySelectorAll('.shop-tab-btn');
+    if(tabName === 'scout') { 
+        btns[0].classList.add('active'); 
+        document.getElementById('shop-tab-scout').classList.remove('hidden'); 
+    }
+    if(tabName === 'items') { 
+        btns[1].classList.add('active'); 
+        document.getElementById('shop-tab-items').classList.remove('hidden'); 
+    }
+    if(tabName === 'uniform') { 
+        btns[2].classList.add('active'); 
+        document.getElementById('shop-tab-uniform').classList.remove('hidden');
+        renderShopUniforms(); // 유니폼 목록 그리기
+    }
+}
+
+// 상점 유니폼 목록 렌더링
+function renderShopUniforms() {
+    const grid = document.getElementById('shop-tab-uniform');
+    if(!grid) return;
+    grid.innerHTML = '';
+    
+    if(typeof uniformPool !== 'undefined') {
+        uniformPool.forEach(u => {
+            grid.innerHTML += `
+                <div class="product-card">
+                    <div class="product-header">${u.name}</div>
+                    <div class="product-img-area" style="background-color: ${u.color};"></div>
+                    <div class="product-info">
+                        <button onclick="selectUniform(${u.id})" class="product-btn" ${selectedUniformIdx === u.id ? 'disabled' : ''}>
+                            ${selectedUniformIdx === u.id ? '착용 중' : '착용하기'}
+                        </button>
+                    </div>
+                </div>`;
+        });
+    }
+}
+
+// 💥 [추가] 충돌 시 번쩍+흔들림 효과
+function triggerHitEffect() {
+    // 1. 빨간 화면 번쩍!
+    const flash = document.getElementById('flash-overlay');
+    if (flash) {
+        flash.style.backgroundColor = "rgba(215, 0, 37, 0.5)"; // 모비스 레드 반투명
+        setTimeout(() => flash.style.backgroundColor = "transparent", 150);
+    }
+
+    // 2. 화면 흔들림 (CSS hit-effect 클래스 활용)
+    if (canvas) {
+        canvas.classList.remove('hit-effect'); // 혹시 있으면 제거하고
+        void canvas.offsetWidth; // 리플로우 강제 (애니메이션 리셋)
+        canvas.classList.add('hit-effect'); // 다시 추가
+        setTimeout(() => canvas.classList.remove('hit-effect'), 300);
     }
 }

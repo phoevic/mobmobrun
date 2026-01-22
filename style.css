@@ -173,3 +173,184 @@
             20%, 80% { transform: translate(5px, 5px); } 30%, 50%, 70% { transform: translate(-10px, 5px); } 
             40%, 60% { transform: translate(10px, -5px); } 100% { transform: translate(0, 0); }
         }
+
+/* =========================================
+   🛍️ 피버스 샵 전용 디자인 (Phoebus Store)
+   ========================================= */
+
+.shop-container {
+    background-color: #f5f5f5;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Galmuri11', sans-serif;
+    /* 기존 .view의 padding 때문에 화면이 좁아지는 것을 방지 */
+    margin: -40px -20px; 
+    width: calc(100% + 40px);
+    height: calc(100% + 80px);
+}
+
+/* 상점 헤더 */
+.shop-header {
+    background-color: #D50032; /* 모비스 레드 */
+    color: white;
+    padding: 15px;
+    font-size: 20px;
+    font-weight: bold;
+    border-bottom: 4px solid #000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+    flex-shrink: 0; /* 헤더 크기 고정 */
+}
+
+.shop-mp-display {
+    background: rgba(0,0,0,0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: normal;
+}
+
+/* 탭 메뉴 영역 */
+.shop-tabs {
+    display: flex;
+    background: #111;
+    padding: 12px;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.shop-tab-btn {
+    flex: 1;
+    padding: 12px 0;
+    border: 2px solid #555;
+    background: #222;
+    color: #888;
+    font-family: 'Galmuri11', sans-serif;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.shop-tab-btn:hover {
+    background: #333;
+    color: #aaa;
+}
+
+.shop-tab-btn.active {
+    background: #D50032;
+    color: white;
+    border-color: #fff;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(213, 0, 50, 0.6);
+    transform: translateY(-2px);
+}
+
+/* 상품 진열대 (스크롤 영역) */
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2열 배치 */
+    gap: 15px;
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1; /* 남은 공간 다 쓰기 */
+    align-content: start; /* 위에서부터 채우기 */
+}
+
+/* 상품 카드 디자인 */
+.product-card {
+    background: white;
+    border: 3px solid #000;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 6px 6px 0 rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.1s;
+}
+
+.product-card:active {
+    transform: translate(2px, 2px);
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.15);
+}
+
+.product-header {
+    background: #000;
+    color: #FFD700; /* 금색 */
+    padding: 6px;
+    font-size: 11px;
+    text-align: center;
+    font-weight: bold;
+    letter-spacing: -0.5px;
+}
+
+.product-img-area {
+    height: 90px;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 3px solid #000;
+    font-size: 40px; /* 이모티콘 크기 */
+}
+
+.product-info {
+    padding: 12px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1;
+}
+
+.product-name {
+    font-size: 14px;
+    font-weight: bold;
+    color: #111;
+    margin-bottom: 4px;
+}
+
+.product-desc {
+    font-size: 10px;
+    color: #666;
+    margin-bottom: 12px;
+    line-height: 1.3;
+    height: 26px; /* 두 줄 높이 확보 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.product-btn {
+    width: 100%;
+    padding: 10px;
+    background: #D50032;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Galmuri11', sans-serif;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 12px;
+    position: relative;
+}
+
+.product-btn:hover {
+    background: #b00028;
+}
+
+.product-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    color: #e5e7eb;
+}
+
+.product-price {
+    font-size: 11px;
+    color: #FFD700;
+    margin-left: 6px;
+}

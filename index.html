@@ -48,8 +48,7 @@
             <div class="flex flex-col space-y-3">
                 <button onclick="startGame()" class="btn-pixel">경 기 시 작</button>
                 <button onclick="switchTab('collection')" class="btn-pixel bg-blue-600">선 수 리 스 트</button>
-                <button onclick="switchTab('equipment')" class="btn-pixel bg-gray-800">라 커 룸</button>
-                <button onclick="switchTab('shop')" class="btn-pixel bg-green-600">피 버 스 샵</button>
+                              <button onclick="switchTab('shop')" class="btn-pixel bg-green-600">피 버 스 샵</button>
 		<button onclick="resetAllData()" class="mt-8 text-[10px] text-white/40 hover:text-red-500 transition-colors uppercase font-normal"> Reset All Data (초기화) </button>
             </div>
         </div>
@@ -70,19 +69,64 @@
             <div id="equipment-grid" class="grid grid-cols-1 gap-4 pb-20 w-full max-w-sm"></div>
         </div>
 
-        <div id="view-shop" class="view hidden bg-red-50 text-black font-normal">
-            <div class="w-full flex justify-end mb-4 pt-4">
-                <button onclick="closeViews()" class="bg-black text-white px-4 py-2 font-normal shadow-md">X</button>
+<div id="view-shop" class="view hidden">
+        <div class="shop-container">
+            
+            <div class="shop-header">
+                <span>PHOEBUS STORE</span>
+                <div class="shop-mp-display">
+                    MP: <span id="ui-shop-mp" style="color:#FFD700; font-weight:bold;">0</span>
+                </div>
+                <button onclick="closeViews()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer; line-height:1;">✖</button>
             </div>
-            <div class="bg-white border-4 border-black p-6 w-full text-center shadow-[12px_12px_0px_#000]">
-                <h3 class="text-2xl font-normal mb-4 uppercase text-red-600">PHOEBUS SHOP</h3>
-                <div class="bg-gray-100 p-4 border-2 border-black mb-8 font-normal text-xl">MY MP: <span id="ui-shop-mp" class="text-red-600">0</span></div>
-                <div class="flex flex-col space-y-6">
-                    <button onclick="buyLife()" class="btn-pixel bg-yellow-400 text-black text-sm w-full">LIFE UP (500 MP)</button>
-                    <button onclick="scoutPlayer()" class="btn-pixel bg-red-600 text-white text-sm w-full">SCOUT (100 MP)</button>
+
+            <div class="shop-tabs">
+                <button class="shop-tab-btn active" onclick="switchShopTab('scout')">선수 영입</button>
+                <button class="shop-tab-btn" onclick="switchShopTab('items')">아이템</button>
+                <button class="shop-tab-btn" onclick="switchShopTab('uniform')">유니폼</button>
+            </div>
+
+            <div id="shop-tab-scout" class="shop-grid">
+                <div class="product-card" style="grid-column: span 2;">
+                    <div class="product-header">BEST SELLER</div>
+                    <div class="product-img-area" style="background: #222; color: white;">❓</div>
+                    <div class="product-info">
+                        <div class="product-name">랜덤 선수 영입</div>
+                        <div class="product-desc">전체 선수단 중 1명을<br>랜덤하게 영입합니다.</div>
+                        <button onclick="scoutPlayer()" class="product-btn">
+                            영입하기 <span class="product-price">200 MP</span>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            <div id="shop-tab-items" class="shop-grid hidden">
+                <div class="product-card">
+                    <div class="product-header">HOT ITEM</div>
+                    <div class="product-img-area">❤️</div>
+                    <div class="product-info">
+                        <div class="product-name">생명력 충전</div>
+                        <div class="product-desc">하트 1개를 즉시<br>충전합니다.</div>
+                        <button onclick="buyLife()" class="product-btn">
+                            구매 <span class="product-price">500 MP</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="product-card">
+                    <div class="product-header">COMING SOON</div>
+                    <div class="product-img-area" style="opacity:0.3;">🔒</div>
+                    <div class="product-info">
+                        <div class="product-name">@phoevic</div>
+                        <div class="product-desc">현대모비스<br>잘 하자!</div>
+                        <button disabled class="product-btn">준비 중</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="shop-tab-uniform" class="shop-grid hidden"></div>
+
         </div>
+    </div>
 
         <div id="overlay-quiz" class="overlay hidden">
             <div class="quiz-card">
@@ -123,7 +167,7 @@
                     <div onclick="scoutPlayer()" class="tactile-btn !bg-white !py-3">
                         <span class="text-xl mb-1">🃏</span>
                         <span class="text-[11px] font-bold">선수 뽑기</span>
-                        <span class="text-[9px] text-gray-500">100 MP</span>
+                        <span class="text-[9px] text-gray-500">200 MP</span>
                     </div>
                 </div>
 
