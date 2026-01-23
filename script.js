@@ -79,7 +79,7 @@ let touchMoved = false; // ✨ 이번 터치에서 이미 움직였는지 체크
             let spriteName = 'human_base'; // 기본값: 상대방(적)은 32x32 기본형
             
             // 내 캐릭터 판별 (팀 정보가 없거나, 모비스 팀인 경우)
-            const isMyPlayer = !playerObj.team || playerObj.team === "ULSAN HYUNDAI MOBIS";
+           const isMyPlayer = !playerObj.team || playerObj.team === "ULSAN HYUNDAI MOBIS";
 
             if (isMyPlayer) {
                 spriteName = 'human_player_64'; // ✨ 내 캐릭터는 64x64 고해상도 사용!
@@ -195,7 +195,7 @@ function addLane(idx) {
         const cycle = (laneLevel - 1) % 10 + 1; // 1~10 사이클
 
         // ⚡ [중요 수정] 속도 계산을 테마 로직보다 '먼저' 해야 합니다!
-        let speedMult = 1.0 + (laneLevel * 0.12);
+        let speedMult = 1.0 + (laneLevel * 0.05);
         if (speedMult > 2.5) speedMult = 2.5;
 
         // A. 테마 확인
@@ -280,103 +280,89 @@ function addLane(idx) {
 /* --- [수정] 장애물 생성 (sprites.js의 KBL 명단 & 마스코트 연동) --- */
 /* --- [수정] 장애물 생성 함수 (모든 맵에서 KBL 선수/마스코트 등장) --- */
 function createEnemyInLane(objs, speedMult, laneLevel, laneType) {
-    
-    // 🌊 [케이스 1] 강물(Water) -> 다양한 길이의 통나무 생성
-    if (laneType === 'river_water') {
-        const speed = (1.5 + Math.random()) * speedMult * (Math.random() > 0.5 ? 1 : -1);
-        
-        // 통나무 개수 (2~3개)
-        const count = Math.random() > 0.5 ? 2 : 3;
+    // ❄️ [케이스 0] 아이스 테마: 위에서 아래로 내려오는 눈덩이/선수
+if (laneType === 'ice') {
+        // 1. 생성 확률 높이기 (기존보다 더 자주 생성되도록 로직 추가 가능)
+        // 레인 하나당 70% 확률로 눈덩이 생성
+        if (Math.random() < 0.7) { 
+            const laneX = [0, 60, 120, 180][Math.floor(Math.random() * 4)];
+            const isSnowball = Math.random() > 0.4; // 눈덩이 비중 상향
 
-        for (let i = 0; i < count; i++) {
-            // 📏 통나무 길이 랜덤 설정 (100px ~ 190px 사이)
-            const randomWidth = 100 + Math.floor(Math.random() * 90);
-
-            objs.push({ 
-                // 간격을 조금 더 넓혀서(300) 긴 통나무끼리 겹치지 않게 함
-                x: (i * 300) + Math.random() * 50, 
-                type: 'log', 
-                width: randomWidth, // ✨ 랜덤 길이 적용!
-                height: 40, 
-                speed: speed 
+            objs.push({
+                x: laneX,
+                // 2. 생성 위치 수정: 화면 밖에서 충분히 위쪽에서 시작하도록 설정
+                y: -canvas.height, 
+                type: 'ice_falling', 
+                subType: isSnowball ? 'snowball' : 'slider',
+                width: 60, height: 60,
+                // 3. 속도 상향: 최소 속도를 높여 더 빠르게 떨어지게 함
+                speedY: (5 + Math.random() * 4) * speedMult, 
+                name: isSnowball ? "왕눈덩이" : "미끄러지는 선수",
+                team: "동계훈련", color: "#FFFFFF"
             });
         }
-        return; // 통나무 만들고 함수 종료
+        return;
     }
-// 🚗 외제차? 국산차? 랜덤 차 색상 팔레트 목록
+
+    // 🌊 [케이스 1] 강물(Water) -> 통나무 생성
+    if (laneType === 'river_water') {
+        const speed = (1.5 + Math.random()) * speedMult * (Math.random() > 0.5 ? 1 : -1);
+        const count = Math.random() > 0.5 ? 2 : 3;
+        for (let i = 0; i < count; i++) {
+            const randomWidth = 100 + Math.floor(Math.random() * 90);
+            objs.push({ 
+                x: (i * 300) + Math.random() * 50, 
+                type: 'log', width: randomWidth, height: 40, speed: speed 
+            });
+        }
+        return;
+    }
+
+// 🚗 [케이스 2] 나머지 모든 땅
     const carColors = ["#FFB655", "#1785B8", "#F44336", "#2196F3", "#FFEB3B", "#4CAF50", "#FF9800", "#9C27B0", "#795548", "#607D8B"];
-
-    // ... (아래쪽 코드는 그대로 두세요) ...
-    // 🚗 [케이스 2] 그 외 모든 땅 (도로, 코트, 얼음, 우주, 강가) -> 적 생성
-    const lanes = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
     
-    // 난이도 설정
-    let maxEnemies = 3;
-    if (laneLevel <= 2) maxEnemies = 1;
-    else if (laneLevel <= 4) maxEnemies = 2;
-
+    // 🌟 수정: 전역 변수 lanes와 겹치지 않게 이름을 바꿉니다.
+    const availableLanes = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+    
+    let maxEnemies = (laneLevel <= 2) ? 1 : (laneLevel <= 4 ? 2 : 3);
     let count = 0;
 
-    // 🕵️‍♂️ sprites.js 데이터 가져오기
     const pool = (typeof opponentPool !== 'undefined') ? opponentPool : [];
     const mascots = pool.filter(p => p.isRedBoo || p.isPegasus);
     const players = pool.filter(p => !p.isRedBoo && !p.isPegasus);
 
     for (let i = 0; i < 4; i++) {
         if (count >= maxEnemies) break;
-
-
-// ✨ [핵심 수정] 도로(road)일 때 50% 확률로 '픽셀 자동차' 생성!
-        // 그 외 지형이거나, 50% 확률에 안 걸리면 기존 '사람' 생성
         let isCar = (laneType === 'road' && Math.random() < 0.5);
 
-        if (Math.random() < 0.5 || isCar) { // 생성 확률 체크 (차가 당첨되면 무조건 생성)
-            const laneX = lanes[i] * 60; 
-            const speed = (2 + Math.random() * 2) * speedMult * (Math.random() > 0.5 ? 1 : -1);
-            
-            let finalObj = {
-                x: laneX,
-                width: 60, height: 60,
-                speed: speed
-            };
+        if (Math.random() < 0.5 || isCar) {
+            // 🌟 수정: 바꾼 이름(availableLanes)을 사용합니다.
+            const laneX = availableLanes[i] * 60; 
+            const speed = (1.2 + Math.random() * 1.0) * speedMult * (Math.random() > 0.5 ? 1 : -1);
+            // ... 이하 동일
+            let finalObj = { x: laneX, width: 60, height: 60, speed: speed };
 
             if (isCar) {
-                // 🚗 픽셀 자동차 데이터 설정
                 finalObj.type = 'pixel_car';
-                // 세단 or 트럭 랜덤 선택
                 finalObj.spriteName = Math.random() > 0.5 ? 'car_sedan' : 'car_truck';
-                // 차체 색상 랜덤 선택
                 finalObj.carColor = carColors[Math.floor(Math.random() * carColors.length)];
-                finalObj.name = "교통사고"; // 충돌 메시지용
-                finalObj.team = "안전운전"; // 충돌 메시지용
+                finalObj.name = "교통사고"; finalObj.team = "안전운전";
             } else {
-                // 🏃‍♂️ 기존 사람/마스코트 데이터 설정
                 finalObj.type = 'player';
-                let selectedData = null;
-                if (Math.random() < 0.225 && mascots.length > 0) {
-                    selectedData = mascots[Math.floor(Math.random() * mascots.length)];
-                } else if (players.length > 0) {
-                    selectedData = players[Math.floor(Math.random() * players.length)];
-                }
-
+                let selectedData = (Math.random() < 0.2 && mascots.length > 0) ? mascots[Math.floor(Math.random() * mascots.length)] : players[Math.floor(Math.random() * players.length)];
                 if (selectedData) {
-                    finalObj.name = selectedData.name;
-                    finalObj.team = selectedData.team;
-                    finalObj.number = selectedData.number;
-                    finalObj.color = selectedData.color;
-                    finalObj.isRedBoo = selectedData.isRedBoo;
-                    finalObj.isPegasus = selectedData.isPegasus;
+                    finalObj.name = selectedData.name; finalObj.team = selectedData.team;
+                    finalObj.number = selectedData.number; finalObj.color = selectedData.color;
+                    finalObj.isRedBoo = selectedData.isRedBoo; finalObj.isPegasus = selectedData.isPegasus;
                 } else {
                     finalObj.name = "OPPONENT"; finalObj.team = "KBL"; finalObj.number = "00"; finalObj.color = "#333";
                 }
             }
-
             objs.push(finalObj);
             count++;
         }
     }
 }
-
         function triggerGameOver(reason) {
             if (gameState === 'DYING' || gameState === 'OVER') return;
             gameState = 'DYING'; showDamageMsg(reason); if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -670,7 +656,17 @@ if (lane.type === 'court') {
             iceGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.4)"); 
             iceGrad.addColorStop(1, "rgba(255, 255, 255, 0.1)");
             ctx.fillStyle = iceGrad; ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
+ctx.fillStyle = "white";
+    for(let i=0; i<3; i++) {
+        // 레인 인덱스를 활용해 고정된 눈송이 위치 계산
+        const snowX = (lane.index * 123 + i * 200) % canvas.width;
+        const snowSize = 2 + (lane.index % 3);
+        ctx.beginPath();
+        ctx.arc(snowX, sY + 20, snowSize, 0, Math.PI * 2);
+        ctx.fill();
         } 
+}
+
         else if (lane.type === 'cosmic') {
             // 🌌 우주 배경 (진한 남색 + 별)
             ctx.fillStyle = "#020014"; ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
@@ -718,193 +714,116 @@ if (lane.type === 'court') {
         const isPlayerLane = (player.lane === lane.index);
         if (isPlayerLane && lane.type === 'river_water') onRiver = true;
 
-        lane.objects.forEach((obj, idx) => {
-// 👇 [여기서부터 복사] 아이템 그리기 및 획득 로직
-            if (obj.type === 'item') {
-                // 1. 둥실둥실 효과
-                const floatY = Math.sin(Date.now() / 200) * 5; 
-                const itemSize = 40; 
+lane.objects.forEach((obj, idx) => {
+            let eLeft, eRight; // 판정용 변수 초기화
 
-                // 2. 바나나 vs 초코바 데이터 선택
-                let data, pal;
-                if (obj.name === 'CHOCO') {
-                    data = ChocoSpriteData;
-                    pal = ChocoPalette;
+            // ❄️ [1] 아이스 테마 떨어지는 장애물 처리
+            if (obj.type === 'ice_falling') {
+                obj.y += obj.speedY;
+                const drawY = sY + obj.y;
+                if (obj.subType === 'snowball') {
+                    ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(obj.x + 30, drawY + 30, 28, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = "#D1F2FF"; ctx.lineWidth = 3; ctx.stroke();
                 } else {
-                    data = BananaSpriteData;
-                    pal = BananaPalette;
+                    drawCharacter(ctx, obj, obj.x, drawY, 60, "#004B8D", "❄️");
                 }
-
-                // 3. 그림자 그리기
-                ctx.fillStyle = "rgba(0,0,0,0.3)";
-                ctx.beginPath();
-                ctx.ellipse(obj.x + 10 + (itemSize/2), sY + 50, 15, 5, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 4. 픽셀 아트 그리기
-                // sprites.js에 데이터가 잘 들어있다면 그려짐
-                if (typeof drawCustomSprite === "function" && data && pal) {
-                     drawCustomSprite(ctx, data, pal, obj.x + 10, sY + 20 + floatY, itemSize);
+                eLeft = obj.x + 10; eRight = obj.x + 50;
+                if (isPlayerLane && invulnerable === 0 && (player.currentX + 35) > eLeft && (player.currentX + 25) < eRight && Math.abs(baseY - drawY) < 45) {
+                    lives--; syncUI(); triggerHitEffect();
+                    showDamageMsg(obj.subType === 'snowball' ? "눈덩이 직격! ☃️" : "빙판 충돌! 🧊");
+                    if (lives <= 0) triggerGameOver("동사..."); else invulnerable = 60;
                 }
-
-                // 5. 냠냠 먹기 (충돌 판정)
-                if (isPlayerLane) {
-                    const dist = Math.abs((player.currentX + 30) - (obj.x + 30));
-                    if (dist < 40) { // 닿았으면
-                        lane.objects.splice(idx, 1); // 삭제
-                        
-                        if (obj.name === 'CHOCO') {
-                            totalMP += 20; 
-                                 } else {
-                            totalMP += 10; 
-
-                        }
-                        syncUI(); // 점수판 갱신
-                    }
-                }
-                return; // 아이템은 여기서 끝! (아래 적 코드 실행 안 함)
+                if (obj.y > canvas.height + 100) { lane.objects.splice(idx, 1); }
+                return;
             }
-            // 👆 [여기까지 복사]
+
+            // 🍌 [2] 아이템 처리
+            if (obj.type === 'item') {
+                const floatY = Math.sin(Date.now() / 200) * 5;
+                const itemSize = 40;
+                let data = obj.name === 'CHOCO' ? ChocoSpriteData : BananaSpriteData;
+                let pal = obj.name === 'CHOCO' ? ChocoPalette : BananaPalette;
+                if (typeof drawCustomSprite === "function") drawCustomSprite(ctx, data, pal, obj.x + 10, sY + 20 + floatY, itemSize);
+                if (isPlayerLane && Math.abs((player.currentX + 30) - (obj.x + 30)) < 40) {
+                    lane.objects.splice(idx, 1); totalMP += (obj.name === 'CHOCO' ? 20 : 10); syncUI();
+                }
+                return;
+            }
+
+            // 🚗 [3] 일반 지상 장애물 처리 (도로, 코트 등)
             if (['road', 'court', 'ice', 'cosmic', 'river_land'].includes(lane.type)) {
                 obj.x += obj.speed;
-                if (obj.x > canvas.width + 100) obj.x = -150; if (obj.x < -150) obj.x = canvas.width + 100;
-                let drawX = obj.x;
-                if (lane.type === 'court') drawX += Math.sin(Date.now() / 100) * 3;
-
-// ✨ [수정] 자동차면 픽셀 차 그리기, 아니면 사람 그리기
-// 🚗 [수정] 자동차 그리기 & 판정 (좌표 일치화)
+                if (obj.x > canvas.width + 100) obj.x = -150;
+                if (obj.x < -150) obj.x = canvas.width + 100;
+                
                 if (obj.type === 'pixel_car') {
-                    ctx.save();
-                    
-                    // 1. 자동차 그리기
-                    // 🎨 방향에 따른 "중앙 기준" 뒤집기 (좌표 오차 원천 차단)
-                    // 차의 정중앙(drawX + 30)으로 붓을 옮깁니다.
-                    ctx.translate(drawX + 30, sY);
-                    
-                    if (obj.speed < 0) {
-                        ctx.scale(-1, 1); // 오른쪽으로 갈 때만 뒤집기
-                    }
-                    
-                    // 자동차 색상 적용
-                    const currentCarPalette = {...CarPalette, 9: obj.carColor};
-
-                    // 그림 그리기 (중앙 기준이므로 x좌표는 -30부터 시작)
-                    if (Sprites32[obj.spriteName]) {
-                        drawSprite32(ctx, obj.spriteName, currentCarPalette, -30, 10, 60);
-                    } else {
-                        // 데이터 없을 때 비상용 박스
-                        ctx.fillStyle = obj.carColor || "red";
-                        ctx.fillRect(-30, 10, 60, 40);
-                    }
-                    
+                    ctx.save(); ctx.translate(obj.x + 30, sY);
+                    if (obj.speed < 0) ctx.scale(-1, 1);
+                    drawSprite32(ctx, obj.spriteName, {...CarPalette, 9: obj.carColor}, -30, 10, 60);
                     ctx.restore();
-
-                    // 2. 충돌 판정 박스 (Hitbox) 설정
-                    // 시각적으로 보이는 차체: drawX ~ drawX + 60
-                    // 실제 충돌 영역: 앞뒤 범퍼 조금씩 떼고 중앙만 (drawX + 20 ~ drawX + 40)
-                    eLeft = drawX + 20; 
-                    eRight = drawX + 40; 
-
+                    eLeft = obj.x + 20; eRight = obj.x + 40;
                 } else {
-                    // 🏃‍♂️ 사람/장애물 그리기 (기존 코드 유지)
-                    drawCharacter(ctx, obj, drawX, sY + 10, 60, obj.color, obj.number);
-                    
-                    // 이름표 그리기
-                    const teamName = obj.team || "TEAM";
-                    const playerName = obj.name || "PLAYER";
-                    ctx.font = "bold 8px Galmuri11"; 
-                    const teamWidth = ctx.measureText(teamName).width;
-                    ctx.font = "bold 10px Galmuri11";
-                    const playerWidth = ctx.measureText(playerName).width;
-                    const boxWidth = Math.max(teamWidth, playerWidth) + 8;
-                    const boxX = drawX + 30 - (boxWidth / 2);
-                    const boxY = sY + 68;
-
-                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-                    ctx.fillRect(boxX, boxY, boxWidth, 24);
-                    ctx.textAlign = "center";
-                    ctx.fillStyle = "#FFD700"; ctx.fillText(teamName, boxX + boxWidth/2, boxY + 9);
-                    ctx.fillStyle = "white"; ctx.fillText(playerName, boxX + boxWidth/2, boxY + 20);   
-                    
-                    // 사람 판정은 조금 더 넓게
-                    eLeft = drawX + 15;
-                    eRight = drawX + 45;
+                    drawCharacter(ctx, obj, obj.x, sY + 10, 60, obj.color, obj.number);
+                    eLeft = obj.x + 15; eRight = obj.x + 45;
                 }
 
-                // 📏 [디버그] 히트박스 눈으로 확인하기 (초록:나, 빨강:적)
-                // 문제가 해결되면 이 부분은 지우셔도 됩니다.
-                const pLeft = player.currentX + 25; 
-                const pRight = player.currentX + 35; 
+                if (invulnerable === 0 && isPlayerLane && (player.currentX + 35) > eLeft && (player.currentX + 25) < eRight) {
+                    lives--; syncUI(); triggerHitEffect();
+                    showDamageMsg(obj.type === 'pixel_car' ? "교통사고! 🚑" : "파울 아웃! 🏀");
+                    if (lives <= 0) triggerGameOver("파울 아웃!"); else invulnerable = 60;
+                }
+            } 
+// 🪵 [4] 강물 통나무 처리 (디자인 업그레이드 버전)
+            else if (lane.type === 'river_water' && obj.type === 'log') {
+                obj.x += obj.speed;
+                if (obj.x > canvas.width + 100) obj.x = -150;
+                if (obj.x < -150) obj.x = canvas.width + 100;
 
-                // ctx.strokeStyle = "#00FF00"; ctx.strokeRect(pLeft, sY + 20, pRight - pLeft, 40); // 내 박스
-                // ctx.strokeStyle = "#FF0000"; ctx.strokeRect(eLeft, sY + 20, eRight - eLeft, 40); // 적 박스
+                // --- 찐 통나무 그리기 시작 ---
+                const logY = sY + 20;
+                const logH = 40;
 
-                // 💥 실제 충돌 체크
-                if (invulnerable === 0 && isPlayerLane && pRight > eLeft && pLeft < eRight) {
-                    lives--; syncUI();
-                    triggerHitEffect(); 
-                    
-                    if (obj.type === 'pixel_car') {
-                        showDamageMsg("교통사고! 🚑");
-                    } else {
-                        const actions = ['블락', '스틸', '굿 파울'];
-                        showDamageMsg(`[${obj.team}] ${obj.name}의 ${actions[Math.floor(Math.random()*3)]}!`);
-                    }
-                    
-                    if (lives <= 0) triggerGameOver(obj.type === 'pixel_car' ? "로드킬..." : "파울 아웃!"); 
-                    else invulnerable = 60;
-                }            // 👈 여기가 땅 위 장애물 if문 닫는 괄호
-            
+                // 1. 몸체 (어두운 나무색)
+                ctx.fillStyle = "#6D4C41"; 
+                ctx.fillRect(obj.x, logY, obj.width, logH);
 
-      // ✨ 수정된 통나무 코드 (여기에 넣어야 obj 에러가 안 납니다!)
-} else if (lane.type === 'river_water' && obj.type === 'log') {
-    obj.x += obj.speed;
-    if (obj.x > canvas.width + 100) obj.x = -150;
-    if (obj.x < -150) obj.x = canvas.width + 100;
+                // 2. 양 끝 둥근 입체감 (나이테 부분)
+                ctx.fillStyle = "#8D6E63";
+                ctx.beginPath(); ctx.ellipse(obj.x, logY + logH/2, 10, logH/2, 0, 0, Math.PI * 2); ctx.fill(); // 왼쪽 끝
+                ctx.beginPath(); ctx.ellipse(obj.x + obj.width, logY + logH/2, 10, logH/2, 0, 0, Math.PI * 2); ctx.fill(); // 오른쪽 끝
 
-    // 🎨 통나무 디자인
-    ctx.fillStyle = "#8D6E63"; // 나무색
-    
-    // 1. 몸통
-    ctx.fillRect(obj.x, sY + 20, obj.width, 40);
-    
-    // 2. 양쪽 끝 둥글게
-    ctx.beginPath(); ctx.arc(obj.x, sY + 40, 20, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(obj.x + obj.width, sY + 40, 20, 0, Math.PI * 2); ctx.fill();
+                // 3. 나이테 디테일 (안쪽 선)
+                ctx.strokeStyle = "#5D4037";
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.ellipse(obj.x + obj.width, logY + logH/2, 5, logH/4, 0, 0, Math.PI * 2); ctx.stroke();
 
-    // 3. 나무 껍질 무늬
-    ctx.fillStyle = "#5D4037"; 
-    ctx.fillRect(obj.x + 20, sY + 20, 10, 40);
-    ctx.fillRect(obj.x + 60, sY + 20, 15, 40);
-    ctx.fillRect(obj.x + obj.width - 30, sY + 20, 8, 40);
+                // 4. 나무 껍질 무늬 (진한 가로줄)
+                ctx.fillStyle = "rgba(0,0,0,0.2)";
+                for (let i = 20; i < obj.width - 20; i += 40) {
+                    ctx.fillRect(obj.x + i, logY + 10, 15, 3);
+                    ctx.fillRect(obj.x + i + 10, logY + 25, 20, 3);
+                }
 
-    // 4. 하이라이트
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
-    ctx.fillRect(obj.x + 5, sY + 25, obj.width - 10, 5);
+                // 5. 상단 하이라이트 (햇빛 반사 느낌)
+                ctx.fillStyle = "rgba(255,255,255,0.15)";
+                ctx.fillRect(obj.x + 5, logY + 5, obj.width - 10, 5);
+                // --- 통나무 그리기 끝 ---
 
-// 5. 나이테
-    ctx.fillStyle = "#D7CCC8";
-    ctx.beginPath(); ctx.ellipse(obj.x, sY + 40, 5, 15, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(obj.x + obj.width, sY + 40, 5, 15, 0, 0, Math.PI * 2); ctx.fill();
-
-    // ✨ [수정] 탑승 판정 널널하게 변경 (+20px 여유)
-    // 기존: (player.currentX + 30) > obj.x ...
-    // 수정: (obj.x - 20) ~ (obj.x + width + 20) 범위까지 인정!
-    if (isPlayerLane && 
-        (player.currentX + 30) > (obj.x - 20) && 
-        (player.currentX + 30) < (obj.x + obj.width + 20)) { 
-        onLog = true; 
-        logSpeed = obj.speed; 
-    }
-
-
-
-            } else if (obj.type === 'audience') {
-                const signY = sY + 30; ctx.fillStyle = "#FFFFFF"; ctx.fillRect(obj.x, signY, 40, 30);
-                ctx.strokeStyle = "#000000"; ctx.strokeRect(obj.x, signY, 40, 30);
-                const d = PixelNumbers[obj.char]; if(d) { ctx.fillStyle = "#D70025"; d.forEach((row, ri) => row.forEach((p, ci) => { if(p) ctx.fillRect(obj.x + 10 + ci * 4, signY + 5 + ri * 4, 4, 4); })); }
+                // 💥 탑승 판정 (여유 있게 20px 추가)
+                if (isPlayerLane && 
+                    (player.currentX + 30) > (obj.x - 20) && 
+                    (player.currentX + 30) < (obj.x + obj.width + 20)) {
+                    onLog = true; 
+                    logSpeed = obj.speed;
+                }
             }
-        });
+            // 🚩 [5] 관객/글자 처리
+            else if (obj.type === 'audience') {
+                const signY = sY + 30; ctx.fillStyle = "#FFFFFF"; ctx.fillRect(obj.x, signY, 40, 30);
+                const d = PixelNumbers[obj.char]; 
+                if(d) { ctx.fillStyle = "#D70025"; d.forEach((row, ri) => row.forEach((p, ci) => { if(p) ctx.fillRect(obj.x + 10 + ci * 4, signY + 5 + ri * 4, 4, 4); })); }
+            }
+        });            
     });
 
 
@@ -983,7 +902,7 @@ function moveForward() {
     }
     
     // 🧹 [렉 방지] 지나온 길 삭제
-    if (lanes.length > 50 && player.lane > 20) {
+    if (lanes.length > 30 && player.lane > 20) {
         // 화면 밖으로 벗어난(내 위치 - 15칸) 길을 삭제
         lanes = lanes.filter(l => l.index > player.lane - 15);
     }
