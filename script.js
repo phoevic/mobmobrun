@@ -196,7 +196,7 @@ function addLane(idx) {
 
         // ⚡ [중요 수정] 속도 계산을 테마 로직보다 '먼저' 해야 합니다!
         let speedMult = 1.0 + (laneLevel * 0.05);
-        if (speedMult > 2.5) speedMult = 2.5;
+        if (speedMult > 2.0) speedMult = 2.0;
 
         // A. 테마 확인
         let theme = 'road';
@@ -306,7 +306,7 @@ if (laneType === 'ice') {
 
     // 🌊 [케이스 1] 강물(Water) -> 통나무 생성
     if (laneType === 'river_water') {
-        const speed = (1.5 + Math.random()) * speedMult * (Math.random() > 0.5 ? 1 : -1);
+        const speed = (1.5 + Math.random()) * speedMult * 0.7 * (Math.random() > 0.5 ? 1 : -1);
         const count = Math.random() > 0.5 ? 2 : 3;
         for (let i = 0; i < count; i++) {
             const randomWidth = 100 + Math.floor(Math.random() * 90);
