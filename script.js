@@ -442,8 +442,9 @@ function gameLoop() {
         const sY = baseY + (cameraY - lane.index * LANE_HEIGHT);
         if (sY < -LANE_HEIGHT || sY > canvas.height) return;
 
-        // 1. 배경 그리기
-
+        else if (lane.type === 'court') {
+            // ... 기존 코트 코드
+        }
 if (lane.type === 'court') {
                     const relIdx = lane.index % LEVEL_DIST; 
                     const centerX = canvas.width / 2;
@@ -706,6 +707,34 @@ ctx.fillStyle = "white";
                 ctx.fillRect(sparkleX, sparkleY, 4, 4);
             }
         }
+        // 1. 배경 그리기
+// --- 도로(Road) 디자인 업그레이드 ---
+        if (lane.type === 'road') {
+            // 1. 기본 아스팔트 색상
+            ctx.fillStyle = "#454545"; 
+            ctx.fillRect(0, sY, canvas.width, LANE_HEIGHT);
+
+            // 2. 아스팔트 질감 (미세한 점들)
+            ctx.fillStyle = "rgba(0,0,0,0.1)";
+            for (let i = 0; i < 15; i++) {
+                const dotX = (lane.index * 77 + i * 130) % canvas.width;
+                ctx.fillRect(dotX, sY + (i * 5) % LANE_HEIGHT, 2, 2);
+            }
+
+            // 3. 도로 위아래 경계선 (갓길 느낌)
+            ctx.fillStyle = "#555555";
+            ctx.fillRect(0, sY, canvas.width, 2); // 위쪽 선
+            ctx.fillRect(0, sY + LANE_HEIGHT - 2, canvas.width, 2); // 아래쪽 선
+
+            // 4. 점선 차선 (가운데 흰색 점선)
+            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+            const dashWidth = 30;
+            const gap = 40;
+            for (let x = 0; x < canvas.width; x += (dashWidth + gap)) {
+                ctx.fillRect(x, sY + LANE_HEIGHT / 2 - 2, dashWidth, 4);
+            }
+        } 
+        // --- 도로 디자인 끝 ---
 
         // ... (아래 else { ctx.fillStyle = lane.color ... } 는 그대로 두세요)
 
@@ -750,29 +779,50 @@ lane.objects.forEach((obj, idx) => {
                 return;
             }
 
-            // 🚗 [3] 일반 지상 장애물 처리 (도로, 코트 등)
+// 🚗 [3] 일반 지상 장애물 처리 (도로, 코트, 우주 등)
             if (['road', 'court', 'ice', 'cosmic', 'river_land'].includes(lane.type)) {
                 obj.x += obj.speed;
                 if (obj.x > canvas.width + 100) obj.x = -150;
                 if (obj.x < -150) obj.x = canvas.width + 100;
                 
                 if (obj.type === 'pixel_car') {
+                    // 자동차 그리기 (이름표 없음)
                     ctx.save(); ctx.translate(obj.x + 30, sY);
                     if (obj.speed < 0) ctx.scale(-1, 1);
                     drawSprite32(ctx, obj.spriteName, {...CarPalette, 9: obj.carColor}, -30, 10, 60);
                     ctx.restore();
                     eLeft = obj.x + 20; eRight = obj.x + 40;
                 } else {
+                    // 🏃 선수 그리기
                     drawCharacter(ctx, obj, obj.x, sY + 10, 60, obj.color, obj.number);
+                    
+                    // 🏷️ [복구] 이름표 및 팀명 그리기
+                    const teamName = obj.team || "TEAM";
+                    const playerName = obj.name || "PLAYER";
+                    ctx.font = "bold 8px Galmuri11"; 
+                    const teamWidth = ctx.measureText(teamName).width;
+                    ctx.font = "bold 10px Galmuri11";
+                    const playerWidth = ctx.measureText(playerName).width;
+                    const boxWidth = Math.max(teamWidth, playerWidth) + 8;
+                    const boxX = obj.x + 30 - (boxWidth / 2);
+                    const boxY = sY + 68;
+
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                    ctx.fillRect(boxX, boxY, boxWidth, 24);
+                    ctx.textAlign = "center";
+                    ctx.fillStyle = "#FFD700"; ctx.fillText(teamName, boxX + boxWidth/2, boxY + 9);
+                    ctx.fillStyle = "white"; ctx.fillText(playerName, boxX + boxWidth/2, boxY + 20);   
+                    
                     eLeft = obj.x + 15; eRight = obj.x + 45;
                 }
 
+                // 💥 충돌 체크
                 if (invulnerable === 0 && isPlayerLane && (player.currentX + 35) > eLeft && (player.currentX + 25) < eRight) {
                     lives--; syncUI(); triggerHitEffect();
-                    showDamageMsg(obj.type === 'pixel_car' ? "교통사고! 🚑" : "파울 아웃! 🏀");
+                    showDamageMsg(obj.type === 'pixel_car' ? "교통사고! 🚑" : `[${obj.team}] ${obj.name}의 파울!`);
                     if (lives <= 0) triggerGameOver("파울 아웃!"); else invulnerable = 60;
                 }
-            } 
+            }
 // 🪵 [4] 강물 통나무 처리 (디자인 업그레이드 버전)
             else if (lane.type === 'river_water' && obj.type === 'log') {
                 obj.x += obj.speed;
