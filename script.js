@@ -4,6 +4,7 @@ const wrapper = document.getElementById('game-wrapper');
 const LANE_HEIGHT = 80, GRID_SIZE = 60, LEVEL_DIST = 40, MAX_LIVES = 5;
 let canvas, ctx, animationFrameId;
 let gameState = 'START', lastMenuState = 'START';
+let floatingTexts = []; // 화면에 떠다닐 텍스트들을 담는 바구니
 
 // 💾 저장 데이터 불러오기
 let totalMP = parseInt(localStorage.getItem('mobis_final_mp')) || 100;
@@ -368,6 +369,7 @@ function triggerGameOver(reason) {
 }
 
 function gameLoop() {
+
     if (gameState !== 'PLAYING' && gameState !== 'SHOOTING') return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -528,7 +530,22 @@ function gameLoop() {
                 const floatY = Math.sin(Date.now() / 200) * 5; const itemSize = 40;
                 let data = obj.name === 'CHOCO' ? ChocoSpriteData : BananaSpriteData; let pal = obj.name === 'CHOCO' ? ChocoPalette : BananaPalette;
                 if (typeof drawCustomSprite === "function") drawCustomSprite(ctx, data, pal, obj.x + 10, sY + 20 + floatY, itemSize);
-                if (isPlayerLane && Math.abs((player.currentX + 30) - (obj.x + 30)) < 40) { lane.objects.splice(idx, 1); totalMP += (obj.name === 'CHOCO' ? 20 : 10); syncUI(); }
+              if (isPlayerLane && Math.abs((player.currentX + 30) - (obj.x + 30)) < 40) {
+    lane.objects.splice(idx, 1);
+    const gain = (obj.name === 'CHOCO' ? 20 : 10);
+    totalMP += gain;
+    
+    // ✨ 여기에 텍스트 효과 추가!
+    floatingTexts.push({
+        x: player.currentX + 30,
+        y: baseY - 50,
+        text: `+${gain} MP`,
+        life: 1.0, // 1.0에서 0까지 줄어들며 사라짐
+        color: obj.name === 'CHOCO' ? "#FFD700" : "#FFFFFF"
+    });
+    
+    syncUI();
+}
                 return;
             }
             if (['road', 'court', 'ice', 'cosmic', 'river_land'].includes(lane.type)) {
@@ -592,7 +609,22 @@ function gameLoop() {
     if (invulnerable > 0) invulnerable--;
     document.getElementById('ui-shotclock').style.width = shotClock + '%';
     drawCharacter(ctx, pObj, player.currentX, baseY - jY + 10, 60, "#D70025"); // 기본 색상으로 그리기 (내부에서 처리됨)
+ 
+
+floatingTexts.forEach((ft, index) => {
+    ctx.globalAlpha = ft.life; // 서서히 투명해짐
+    ctx.fillStyle = ft.color;
+    ctx.font = "bold 10px Galmuri11";
+    ctx.textAlign = "center";
+    ctx.fillText(ft.text, ft.x, ft.y);
     
+    ft.y -= 1.5; // 위로 둥둥 떠오름
+    ft.life -= 0.02; // 수명 감소
+    
+    if (ft.life <= 0) floatingTexts.splice(index, 1);
+});
+ctx.globalAlpha = 1.0; // 투명도 초기화
+   
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
@@ -832,157 +864,162 @@ function renderAvatarShop() {
     if(!container) return;
     container.innerHTML = ''; 
 
-    // 미리보기 그릴 목록 큐
-    let drawQueue = [];
-
-    // 🎨 CSS 스타일 주입 (버튼 잘림 방지용)
+    // 🎨 스타일 수정: .hidden 클래스가 없을 때만 flex가 적용되도록 수정 (:not(.hidden) 추가)
     const style = document.createElement('style');
     style.innerHTML = `
-        .shop-grid-container {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr); /* 한 줄에 2개 */
-            gap: 10px;
-            padding-bottom: 20px;
+        /* [수정됨] 숨겨져 있지 않을 때만 flex 적용 */
+        #shop-tab-uniform:not(.hidden) {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            padding: 20px 0 !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
         }
-        .product-card {
-            background: #fff;
-            border: 2px solid #000;
-            border-radius: 8px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column; /* 세로 정렬 */
-            box-shadow: 3px 3px 0px rgba(0,0,0,0.2);
+
+        .shop-category-title {
+            width: 90% !important;
+            max-width: 380px !important;
+            text-align: left !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            color: #000 !important;
+            margin-top: 15px !important;
+            margin-bottom: 8px !important;
+            border-bottom: 2px solid #000 !important;
+            padding-bottom: 5px !important;
         }
-        .product-header {
-            background: #000;
-            color: #FFD700;
-            font-size: 12px;
-            font-weight: bold;
-            padding: 6px;
-            text-align: center;
+
+        .shop-card-horizontal {
+            display: flex !important;
+            flex-direction: row !important;
+            width: 90% !important;
+            max-width: 380px !important;
+            height: 110px !important;
+            background: #fff !important;
+            border: 3px solid #000 !important;
+            border-radius: 12px !important;
+            margin-bottom: 12px !important;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15) !important;
+            overflow: hidden !important;
+            align-items: center !important;
         }
-        .product-img-area {
-            background-color: #f5f5f5;
-            padding: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-bottom: 2px solid #eee;
-            min-height: 80px; /* 최소 높이 확보 */
+
+        .shop-card-img {
+            width: 100px !important;
+            height: 100% !important;
+            background: #f4f4f4 !important;
+            border-right: 3px solid #000 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
         }
-        .product-info {
-            padding: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            background: #fff;
-            flex-grow: 1; /* 남은 공간 채우기 */
-            justify-content: flex-end; /* 버튼을 아래로 */
+
+        .shop-card-info {
+            flex: 1 !important;
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            padding: 0 15px !important;
+            gap: 6px !important;
         }
-        .product-price {
-            font-size: 12px;
-            font-weight: bold;
-            color: #333;
-            text-align: center;
-            margin-bottom: 4px;
+
+        .shop-item-name {
+            font-size: 15px !important;
+            font-weight: bold !important;
+            color: #000 !important;
+            line-height: 1.2 !important;
+            margin: 0 !important;
         }
-        .product-btn {
-            width: 100%;
-            padding: 8px 0;
-            font-size: 11px;
-            font-weight: bold;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: opacity 0.2s;
+
+        .shop-item-price {
+            font-size: 12px !important;
+            color: #666 !important;
+            margin: 0 !important;
         }
-        .product-btn:hover { opacity: 0.8; }
-        .product-btn:disabled { background-color: #4CAF50 !important; cursor: default; }
+
+        .shop-btn-action {
+            width: 100% !important;
+            height: 32px !important;
+            border: none !important;
+            border-radius: 6px !important;
+            color: white !important;
+            font-family: 'Galmuri11', sans-serif !important;
+            font-weight: bold !important;
+            cursor: pointer !important;
+            font-size: 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .shop-btn-action:active {
+            transform: translateY(2px);
+        }
     `;
     container.appendChild(style);
 
-    // 그리드 래퍼 생성
-    const wrapper = document.createElement('div');
-    wrapper.className = 'shop-grid-container';
+    let drawQueue = [];
 
-    const createSection = (title, items, type, mySet, selectedId) => {
-        // 섹션 제목 (HTML 문자열로 반환하지 않고 바로 wrapper에 추가하기 위해 구조 변경)
+    const addSection = (title, items, type, mySet, selectedId) => {
         const titleDiv = document.createElement('div');
-        titleDiv.style.cssText = "grid-column: span 2; margin-top: 15px; border-bottom: 2px solid #333; padding-bottom:5px; font-weight:bold; color:#000; font-size:14px;";
+        titleDiv.className = 'shop-category-title';
         titleDiv.innerText = title;
-        wrapper.appendChild(titleDiv);
-        
+        container.appendChild(titleDiv);
+
         items.forEach(item => {
             const isOwned = item.price === 0 || mySet.has(item.id);
             const isEquipped = selectedId === item.id;
-            const canvasId = `shop-preview-${type}-${item.id}`;
+            const canvasId = `shop-canvas-${type}-${item.id}`;
             drawQueue.push({ type, itemId: item.id, canvasId });
 
             const card = document.createElement('div');
-            card.className = 'product-card';
+            card.className = 'shop-card-horizontal';
             card.innerHTML = `
-                <div class="product-header">${item.name}</div>
-                <div class="product-img-area">
-                    <canvas id="${canvasId}" width="60" height="60"></canvas>
+                <div class="shop-card-img">
+                    <canvas id="${canvasId}" width="80" height="80" style="image-rendering:pixelated; width:70px; height:70px;"></canvas>
                 </div>
-                <div class="product-info">
-                    <div class="product-price">${isOwned ? '보유중' : item.price.toLocaleString() + ' MP'}</div>
-                    <button class="product-btn" 
+                <div class="shop-card-info">
+                    <div class="shop-item-name">${item.name}</div>
+                    <div class="shop-item-price">${isOwned ? '보유중' : item.price + ' MP'}</div>
+                    <button class="shop-btn-action" 
                             onclick="${isOwned ? `equipItem('${type}', ${item.id})` : `buyItem('${type}', ${item.id})`}" 
-                            style="background:${isEquipped ? '#4CAF50' : '#D50032'};">
+                            style="background:${isEquipped ? '#002c5f' : '#D50032'};">
                         ${isEquipped ? '장착 중' : (isOwned ? '장착하기' : '구매하기')}
                     </button>
                 </div>`;
-            wrapper.appendChild(card);
+            container.appendChild(card);
         });
     };
 
-    createSection("👕 상의 (Tops)", gameShopData.tops, 'tops', myTops, selectedTopIdx);
-    createSection("🩳 하의 (Bottoms)", gameShopData.bottoms, 'bottoms', myBottoms, selectedBottomIdx);
-    createSection("✨ 특수 효과 (Effects)", gameShopData.effects, 'effects', myEffects, selectedEffectIdx);
+    addSection("👕 상의 (Tops)", gameShopData.tops, 'tops', myTops, selectedTopIdx);
+    addSection("🩳 하의 (Bottoms)", gameShopData.bottoms, 'bottoms', myBottoms, selectedBottomIdx);
 
-    container.appendChild(wrapper);
-
-    // 캔버스 그리기
     setTimeout(() => {
         drawQueue.forEach(req => {
-            drawShopPreview(req.canvasId, req.type, req.itemId);
+            const cvs = document.getElementById(req.canvasId);
+            if (!cvs) return;
+            const ctx = cvs.getContext('2d');
+            const item = gameShopData[req.type].find(i => i.id === req.itemId);
+            
+            ctx.clearRect(0,0,80,80);
+
+            if (item && item.sprite && Sprites32[item.sprite]) {
+                const pal = (item.paletteId && PaletteMap[item.paletteId]) ? PaletteMap[item.paletteId] : HomeUniformPalette;
+                drawCustomSprite(ctx, Sprites32[item.sprite], pal, -4, -4, 88); 
+            } else {
+                ctx.fillStyle = "#eee";
+                ctx.fillRect(10, 10, 60, 60);
+                ctx.font = "bold 40px Arial"; 
+                ctx.textAlign="center"; 
+                ctx.textBaseline="middle";
+                ctx.fillStyle = "#ccc";
+                ctx.fillText(req.type === 'tops' ? "T" : "P", 40, 40);
+            }
         });
-    }, 0);
+    }, 50);
 }
-// 🏪 상점 아이템 미리보기 그리기 도우미
-function drawShopPreview(canvasId, type, itemId) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    // 미리보기용 더미 플레이어 (내 팀)
-    const dummyPlayer = { team: "ULSAN HYUNDAI MOBIS", number: "SHOP" };
-
-    // 입혀볼 아이템 설정
-    let previewTop = null;
-    let previewBottom = null;
-
-    if (type === 'tops') {
-        previewTop = itemId;           // 상의 탭이면 해당 상의를 입힘
-        previewBottom = selectedBottomIdx; // 하의는 현재 내가 입은 거 그대로
-    } else if (type === 'bottoms') {
-        previewTop = selectedTopIdx;   // 상의는 현재 내가 입은 거 그대로
-        previewBottom = itemId;        // 하의 탭이면 해당 하의를 입힘
-    } else {
-        // 이펙트 탭 등은 그냥 현재 상태 보여줌
-        previewTop = selectedTopIdx;
-        previewBottom = selectedBottomIdx;
-    }
-
-    // 캔버스 클리어
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 미리보기 그리기 호출 (override 파라미터 사용!)
-    drawCharacter(ctx, dummyPlayer, 0, 0, 60, "#D70025", null, previewTop, previewBottom);
-}
-
 
 // 💰 아이템 구매 로직
 function buyItem(type, id) {
