@@ -1,4 +1,4 @@
-/* script.js - 게임의 두뇌 및 동작 (통합 수정본) */
+/* script.js - 게임의 두뇌 및 동작 (최종 수정본) */
 
 const wrapper = document.getElementById('game-wrapper');
 const LANE_HEIGHT = 80, GRID_SIZE = 60, LEVEL_DIST = 40, MAX_LIVES = 5;
@@ -12,12 +12,12 @@ let myCollection = new Set(JSON.parse(localStorage.getItem('mobis_final_col')) |
 let selectedId = parseInt(localStorage.getItem('mobis_final_selected')) || 28;
 let bestDist = parseInt(localStorage.getItem('mobis_final_best')) || 0;
 
-// 👕 옷장 & 효과 상태 변수 (NEW)
+// 👕 옷장 & 효과 상태 변수
 let selectedTopIdx = parseInt(localStorage.getItem('mobis_top')) || 0;
 let selectedBottomIdx = parseInt(localStorage.getItem('mobis_bottom')) || 0;
 let selectedEffectIdx = parseInt(localStorage.getItem('mobis_effect')) || 0;
 
-// 🎒 인벤토리 (NEW)
+// 🎒 인벤토리
 let myTops = new Set(JSON.parse(localStorage.getItem('mobis_my_tops')) || [0]);
 let myBottoms = new Set(JSON.parse(localStorage.getItem('mobis_my_bottoms')) || [0]);
 let myEffects = new Set(JSON.parse(localStorage.getItem('mobis_my_effects')) || [0]);
@@ -48,18 +48,85 @@ function drawCustomSprite(targetCtx, data, palette, x, y, size) {
     });
 }
 
+// 💾 스프라이트 캐시 저장소 (렉 방지 핵심)
+const spriteCache = {};
+
 function drawSprite32(targetCtx, spriteName, colors, x, y, size) {
     if (!targetCtx) return;
+
+    // 자동차인지 확인 (최적화 대상)
+    const isCar = spriteName.startsWith('car_');
+
+    if (isCar) {
+        // 1. 캐시 키 생성 (차종 + 차체 색상)
+        const carBodyColor = (colors && colors[9]) ? colors[9] : 'def';
+        const cacheKey = spriteName + '_' + carBodyColor; 
+
+        // 2. 캐시 적중! (이미 그려둔 그림 사용 -> 초고속)
+        const cached = spriteCache[cacheKey];
+        if (cached) {
+            // 저장된 비율(ratio)을 이용해 가로 길이를 계산
+            const drawW = size * cached.ratio;
+            targetCtx.drawImage(cached.img, x, y, drawW, size);
+            return;
+        }
+
+        // 3. 캐시 미스 -> 새로 그리기 (메모리 캔버스 생성)
+        const data = Sprites32[spriteName];
+        if (!data) return;
+
+        // 데이터의 실제 크기 측정 (64x32 등)
+        const h = data.length;
+        const w = data[0].length;
+        
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const cCtx = c.getContext('2d');
+        
+        // 픽셀 찍기
+        for (let r = 0; r < h; r++) {
+            for (let col = 0; col < w; col++) {
+                const pVal = data[r][col];
+                if (pVal === 0) continue;
+                
+                // 색상 찾기
+                const color = (colors && colors[pVal]) ? colors[pVal] : Colors[pVal];
+                if (color) {
+                    cCtx.fillStyle = color;
+                    cCtx.fillRect(col, r, 1, 1);
+                }
+            }
+        }
+
+        // 결과 저장 (그림 + 비율 정보)
+        spriteCache[cacheKey] = { img: c, ratio: w / h };
+
+        // 화면에 그리기
+        const drawW = size * (w / h);
+        targetCtx.drawImage(c, x, y, drawW, size);
+        return;
+    }
+
+    // 🟢 [일반 캐릭터] 기존 방식 (매번 그리기 - 동적 변화 대응)
     const data = Sprites32[spriteName];
     if (!data) return;
+    
     const pLength = data.length;
     const pSize = size / pLength;
-    data.forEach((row, rIdx) => { 
-        row.forEach((cIdx, colIdx) => { 
-            const color = typeof cIdx === 'string' ? Colors[cIdx] : colors[cIdx]; 
-            if (color) { targetCtx.fillStyle = color; targetCtx.fillRect(x + colIdx * pSize, y + rIdx * pSize, Math.ceil(pSize), Math.ceil(pSize)); }
-        }); 
-    });
+    
+    for (let r = 0; r < pLength; r++) {
+        for (let c = 0; c < pLength; c++) {
+            const pVal = data[r][c];
+            if (!pVal) continue;
+
+            let color = (colors && colors[pVal]) ? colors[pVal] : Colors[pVal];
+            if (color) { 
+                targetCtx.fillStyle = color; 
+                targetCtx.fillRect(x + c * pSize, y + r * pSize, Math.ceil(pSize), Math.ceil(pSize)); 
+            }
+        }
+    }
 }
 
 function drawDigit(targetCtx, d, dx, dy, ds) {
@@ -67,30 +134,15 @@ function drawDigit(targetCtx, d, dx, dy, ds) {
     digitData.forEach((row, ri) => row.forEach((p, ci) => { if(p) targetCtx.fillRect(dx + ci * ds, dy + ri * ds, ds, ds); }));
 }
 
-// 🖌️ 캐릭터 그리기 (미리보기 기능 추가됨)
-// overrideTop/Bottom에 값이 들어오면 현재 장착한 옷 대신 그 옷을 입혀서 그립니다.
-// 🖌️ 캐릭터 그리기 (위치 보정 기능 포함)
+// 🖌️ 캐릭터 그리기
 function drawCharacter(targetCtx, playerObj, x, y, size, teamColor = "#D70025", numOverride = null, overrideTop = null, overrideBottom = null) {
     if (!targetCtx) return;
     
-    // ==========================================
-    // 🛠️ 옷 위치 강제 보정 (이 숫자를 바꿔서 맞추세요!)
-    // ==========================================
-    // 양수(+)는 오른쪽/아래, 음수(-)는 왼쪽/위로 이동합니다.
-    // 예: 1 = 0.5픽셀 이동, 2 = 1픽셀 이동
-    
-    // 🩳 하의 위치 조정
-    const BOT_ADJUST_X = 2;   // 하의 좌우 (예: -2 하면 왼쪽으로 1픽셀 감)
-    const BOT_ADJUST_Y = 0;   // 하의 상하 (예: 2 하면 아래로 1픽셀 내려감)
+    // 옷 위치 보정값
+    const BOT_ADJUST_X = 2; const BOT_ADJUST_Y = 0;
+    const TOP_ADJUST_X = 2; const TOP_ADJUST_Y = 0;
+    const pixelUnit = size / 64; 
 
-    // 👕 상의 위치 조정
-    const TOP_ADJUST_X = 2;   // 상의 좌우
-    const TOP_ADJUST_Y = 0;   // 상의 상하
-    // ==========================================
-
-    const pixelUnit = size / 64; // 1픽셀 단위 크기 계산
-
-    // 1. 특수 캐릭터 처리
     const sColors = {...Colors, 6: teamColor};
     if (playerObj?.isRedBoo) { drawSprite32(targetCtx, 'redboo', { 0: null, 1: "#000000", 2: "#FFFFFF", 3: "#FF0000" }, x, y, size); return; }
     if (playerObj?.isGongaji) { drawCustomSprite(targetCtx, Sprites32.gongaji, GongajiPalette, x, y, size); return; }
@@ -99,67 +151,53 @@ function drawCharacter(targetCtx, playerObj, x, y, size, teamColor = "#D70025", 
     if (playerObj?.isBall || playerObj?.id === 999) { drawSprite32(targetCtx, 'basketball', basketballPalette, x, y, size); return; }
     if (playerObj?.isWhale || playerObj?.id === 26) { drawSprite32(targetCtx, 'whale', Colors, x, y, size); return; }
 
-    // 2. 사람 캐릭터 그리기
     const isMyPlayer = !playerObj.team || playerObj.team === "ULSAN HYUNDAI MOBIS";
 
     if (isMyPlayer) {
-        // [레이어 1] 기본 몸체
+        // 몸체
         if (Sprites32['human_player_64'] && Sprites32['human_player_64'].length > 0) {
              drawSprite32(targetCtx, 'human_player_64', sColors, x, y, size);
         } else {
              drawSprite32(targetCtx, 'human_base', sColors, x, y, size);
         }
-
-        // [레이어 2] 하의 입히기 (보정값 적용)
+        // 하의
         const currentBottomId = (overrideBottom !== null) ? overrideBottom : selectedBottomIdx;
         const bItem = gameShopData.bottoms.find(i => i.id === currentBottomId);
-        
         if (bItem && bItem.sprite && Sprites32[bItem.sprite]) {
             const pal = (bItem.paletteId && PaletteMap[bItem.paletteId]) ? PaletteMap[bItem.paletteId] : HomeUniformPalette;
-            // 👇 여기서 위치를 이동시킴
             drawCustomSprite(targetCtx, Sprites32[bItem.sprite], pal, x + (BOT_ADJUST_X * pixelUnit), y + (BOT_ADJUST_Y * pixelUnit), size);
         }
-
-        // [레이어 3] 상의 입히기 (보정값 적용)
+        // 상의
         const currentTopId = (overrideTop !== null) ? overrideTop : selectedTopIdx;
         const tItem = gameShopData.tops.find(i => i.id === currentTopId);
-        
         if (tItem && tItem.sprite && Sprites32[tItem.sprite]) {
             const pal = (tItem.paletteId && PaletteMap[tItem.paletteId]) ? PaletteMap[tItem.paletteId] : HomeUniformPalette;
-            // 👇 여기서 위치를 이동시킴
             drawCustomSprite(targetCtx, Sprites32[tItem.sprite], pal, x + (TOP_ADJUST_X * pixelUnit), y + (TOP_ADJUST_Y * pixelUnit), size);
         }
-
     } else {
         sColors[3] = playerObj?.hair || "#332211"; 
         drawSprite32(targetCtx, 'human_base', sColors, x, y, size);
     }
     
-// 3. 등번호 (우리 팀: 흰색 + 사이즈 축소 + 위치 보정)
+    // 등번호
     const num = (numOverride !== null && numOverride !== undefined) ? numOverride : playerObj?.number;
-    if (num !== undefined && num !== null && !["🐶", "🐳", "🏀", "👹"].includes(String(num))) {
+    if (num !== undefined && num !== null && !["🐶", "🐳", "🏀", "👹", "🦄"].includes(String(num))) {
         const ns = String(num);
         const pSize = size / 32;
 
         if (isMyPlayer) {
-            // ⭐ [우리 팀 설정]
-            targetCtx.fillStyle = "#FFFFFF"; // 번호 색상: 흰색
-            
-            // 📍 위치 미세 조정 변수 (여기 숫자를 수정해서 위치를 잡으세요!)
-            const MY_NUM_X_OFFSET = 1.3;  // 양수: 오른쪽 이동 / 음수: 왼쪽 이동
-            const MY_NUM_Y_OFFSET = 17.5;   // 숫자가 커질수록 아래로 내려감 (현재 19)
-            const MY_NUM_SIZE = 0.9;      // 번호 전체 크기 (현재 0.9)
+            targetCtx.fillStyle = "#FFFFFF"; 
+            const MY_NUM_X_OFFSET = 1.3;
+            const MY_NUM_Y_OFFSET = 17.5;
+            const MY_NUM_SIZE = 0.9;
 
             if (ns.length === 1) {
-                // 한 자리 번호
                 drawDigit(targetCtx, ns[0], x + (14 + MY_NUM_X_OFFSET) * pSize, y + MY_NUM_Y_OFFSET * pSize, pSize * (MY_NUM_SIZE * 1.2));
             } else {
-                // 두 자리 번호 (간격을 좁게 설정)
                 drawDigit(targetCtx, ns[0], x + (12.5 + MY_NUM_X_OFFSET) * pSize, y + MY_NUM_Y_OFFSET * pSize, pSize * MY_NUM_SIZE);
                 drawDigit(targetCtx, ns[1], x + (16.5 + MY_NUM_X_OFFSET) * pSize, y + MY_NUM_Y_OFFSET * pSize, pSize * MY_NUM_SIZE);
             }
         } else {
-            // 👤 [상대 팀 설정] - 기존 유지
             targetCtx.fillStyle = "white";
             const enemyYOffset = 16 * pSize;
             if (ns.length === 1) {
@@ -170,7 +208,8 @@ function drawCharacter(targetCtx, playerObj, x, y, size, teamColor = "#D70025", 
             }
         }
     }
-    // 4. 이펙트
+    
+    // 이펙트
     let effectType = 'none';
     const eItem = gameShopData.effects.find(i => i.id === selectedEffectIdx);
     if (eItem) effectType = eItem.type;
@@ -182,7 +221,7 @@ function drawCharacter(targetCtx, playerObj, x, y, size, teamColor = "#D70025", 
         renderHeartEffect(targetCtx, x, y, size);
     }
 }
-// ✨ 효과 그리기 도우미 함수
+
 function renderStarEffect(ctx, x, y, size) {
     const time = Date.now() / 400; const radius = size * 0.65;
     for (let i = 0; i < 3; i++) {
@@ -229,7 +268,7 @@ function saveGameData() {
     localStorage.setItem('mobis_final_selected', selectedId);
     localStorage.setItem('mobis_final_best', bestDist);
     
-    // NEW: 옷장 정보 저장
+    // 옷장 정보 저장
     localStorage.setItem('mobis_top', selectedTopIdx);
     localStorage.setItem('mobis_bottom', selectedBottomIdx);
     localStorage.setItem('mobis_effect', selectedEffectIdx);
@@ -239,8 +278,13 @@ function saveGameData() {
 }
 
 function resize() {
-    canvas = document.getElementById('game-canvas'); if (!canvas) return;
+    canvas = document.getElementById('game-canvas'); 
+    if (!canvas) return;
     ctx = canvas.getContext('2d'); 
+    
+    // ⚡ [중요] 픽셀 아트를 선명하게 유지하고 성능 향상 (여기서 한 번만 실행)
+    ctx.imageSmoothingEnabled = false; 
+
     canvas.width = wrapper.clientWidth; 
     canvas.height = wrapper.clientHeight;
     player.targetX = (Math.floor((canvas.width / 2) / GRID_SIZE) * GRID_SIZE);
@@ -253,10 +297,22 @@ function addLane(idx) {
     let color = idx % 2 === 0 ? '#d29145' : '#de9b42'; 
     let objs = [];
     
-    if (idx > 0 && idx % LEVEL_DIST === 0) {
-        type = 'goal'; color = '#D70025';
-        ['M', 'O', 'B', 'I', 'S'].forEach((char, i) => { objs.push({ x: 50 + i * 70, type: 'audience', char: char }); });
-    } else if (idx > 2) {
+// script.js 내 addLane 함수 중 goal 라인 부분
+if (idx > 0 && idx % LEVEL_DIST === 0) {
+    type = 'goal'; color = '#D70025';
+    
+    // 📏 중앙 정렬: (박스 6개 x 간격 60px)에서 마지막 여백 제외 약 340px
+    const totalWidth = 340; 
+    const startX = (canvas.width - totalWidth) / 2;
+
+    ['M', 'O', 'B', 'I', 'S'].forEach((char, i) => { 
+        objs.push({ x: startX + i * 60, type: 'audience', char: char }); 
+    });
+    // 하트 기호를 넣을 박스 추가
+    objs.push({ x: startX + 300, type: 'goal_heart' });
+}
+
+else if (idx > 2) {
         const laneLevel = Math.floor(idx / LEVEL_DIST) + 1;
         const cycle = (laneLevel - 1) % 10 + 1;
         let speedMult = 1.0 + (laneLevel * 0.05); if (speedMult > 2.0) speedMult = 2.0;
@@ -289,10 +345,10 @@ function addLane(idx) {
             }
         }
     }
-    if (idx > 3 && Math.random() < 0.2) { 
-        const isChoco = Math.random() > 0.7; 
-        objs.push({ x: Math.random() * (canvas.width - 60), type: 'item', name: isChoco ? 'CHOCO' : 'BANANA', width: 40, speed: 0 });
-    }
+if (idx > 3 && idx % LEVEL_DIST !== 0 && Math.random() < 0.2) { 
+    const isChoco = Math.random() > 0.7; 
+    objs.push({ x: Math.random() * (canvas.width - 60), type: 'item', name: isChoco ? 'CHOCO' : 'BANANA', width: 40, speed: 0 });
+}
     lanes.push({ type, color, objects: objs, index: idx });
 }
 
@@ -540,7 +596,7 @@ function gameLoop() {
         x: player.currentX + 30,
         y: baseY - 50,
         text: `+${gain} MP`,
-        life: 1.0, // 1.0에서 0까지 줄어들며 사라짐
+        life: 1.0, 
         color: obj.name === 'CHOCO' ? "#FFD700" : "#FFFFFF"
     });
     
@@ -553,9 +609,16 @@ function gameLoop() {
                 if (obj.x > canvas.width + 100) obj.x = -150; if (obj.x < -150) obj.x = canvas.width + 100;
                 
                 if (obj.type === 'pixel_car') {
-                    ctx.save(); ctx.translate(obj.x + 30, sY); if (obj.speed < 0) ctx.scale(-1, 1);
-                    drawSprite32(ctx, obj.spriteName, {...CarPalette, 9: obj.carColor}, -30, 10, 60); ctx.restore();
-                    eLeft = obj.x + 20; eRight = obj.x + 40;
+                    ctx.save(); 
+                    // 차 위치를 중앙으로 보정 (+30) 후, 속도 방향에 따라 뒤집기
+                    ctx.translate(obj.x + 30, sY); 
+                    if (obj.speed < 0) ctx.scale(-1, 1);
+                    
+                    // 🚗 [수정됨] 자동차 크기를 60 -> 50으로 줄이고, 위치를 중앙으로 보정 (-40, 20)
+                    // 너비는 비율에 따라 자동 계산됨 (약 100px)
+                    drawSprite32(ctx, obj.spriteName, {...CarPalette, 9: obj.carColor}, -30, 10, 60); 
+                    ctx.restore();
+                    eLeft = obj.x + 10; eRight = obj.x + 40;
                 } else {
                     drawCharacter(ctx, obj, obj.x, sY + 10, 60, obj.color, obj.number);
                     const teamName = obj.team || "TEAM"; const playerName = obj.name || "PLAYER";
@@ -585,6 +648,24 @@ function gameLoop() {
                 const signY = sY + 30; ctx.fillStyle = "#FFFFFF"; ctx.fillRect(obj.x, signY, 40, 30);
                 const d = PixelNumbers[obj.char]; if(d) { ctx.fillStyle = "#D70025"; d.forEach((row, ri) => row.forEach((p, ci) => { if(p) ctx.fillRect(obj.x + 10 + ci * 4, signY + 5 + ri * 4, 4, 4); })); }
             }
+// ✨ 하트 그리기 추가
+
+else if (obj.type === 'goal_heart') {
+    const signY = sY + 30;
+    
+    // 1. 하얀색 배경 박스
+    ctx.fillStyle = "#FFFFFF"; 
+    ctx.fillRect(obj.x, signY, 40, 30); 
+
+    // 2. ♥ 기호 그리기
+    ctx.fillStyle = "#D70025"; // 하트 색상 (모비스 레드)
+    ctx.font = "bold 24px Arial"; // 기호 크기 조절
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    // 박스(40x30)의 정중앙인 (x+20, y+15) 지점에 출력
+    ctx.fillText("♥", obj.x + 20, signY + 15);
+}
         });            
     });
 
@@ -608,22 +689,23 @@ function gameLoop() {
     }
     if (invulnerable > 0) invulnerable--;
     document.getElementById('ui-shotclock').style.width = shotClock + '%';
-    drawCharacter(ctx, pObj, player.currentX, baseY - jY + 10, 60, "#D70025"); // 기본 색상으로 그리기 (내부에서 처리됨)
+    drawCharacter(ctx, pObj, player.currentX - 7, baseY - jY + 2, 70, "#D70025"); 
  
-
-floatingTexts.forEach((ft, index) => {
-    ctx.globalAlpha = ft.life; // 서서히 투명해짐
-    ctx.fillStyle = ft.color;
+    // 텍스트 렌더링 최적화 (루프 밖에서 폰트 설정)
     ctx.font = "bold 10px Galmuri11";
     ctx.textAlign = "center";
-    ctx.fillText(ft.text, ft.x, ft.y);
     
-    ft.y -= 1.5; // 위로 둥둥 떠오름
-    ft.life -= 0.02; // 수명 감소
-    
-    if (ft.life <= 0) floatingTexts.splice(index, 1);
-});
-ctx.globalAlpha = 1.0; // 투명도 초기화
+    floatingTexts.forEach((ft, index) => {
+        ctx.globalAlpha = ft.life; 
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        
+        ft.y -= 1.5; 
+        ft.life -= 0.02; 
+        
+        if (ft.life <= 0) floatingTexts.splice(index, 1);
+    });
+    ctx.globalAlpha = 1.0;
    
     animationFrameId = requestAnimationFrame(gameLoop);
 }
@@ -639,23 +721,50 @@ function startGame() {
 
 function moveForward() {
     if (gameState !== 'PLAYING') return;
-    player.lane++; score = player.lane; totalMP += 1; shotClock = 100; 
-    if (player.lane > 0 && player.lane % LEVEL_DIST === 0) { gameState = 'QUIZ'; showQuiz(); }
+    
+    // 💡 수정 포인트: 다음 칸(player.lane + 1)이 현재 최고 점수(score)보다 높을 때만 처리
+    if (player.lane + 1 > score) {
+        score = player.lane + 1; // 최고 도달 거리 갱신
+        totalMP += 1;            // 새로운 칸에 도달했을 때만 MP 지급
+    }
+
+    player.lane++; // 실제 플레이어 위치 이동
+    shotClock = 100; 
+    
+    // 퀴즈 및 레인 추가 로직 (기존 유지)
+    if (player.lane > 0 && player.lane % LEVEL_DIST === 0) { 
+        gameState = 'QUIZ'; 
+        showQuiz(); 
+    }
+
     const lastLaneIndex = lanes.length > 0 ? lanes[lanes.length - 1].index : -1;
-    if (lastLaneIndex < player.lane + 20) { addLane(lastLaneIndex + 1); }
-    if (lanes.length > 30 && player.lane > 20) { lanes = lanes.filter(l => l.index > player.lane - 15); }
+    if (lastLaneIndex < player.lane + 20) { 
+        addLane(lastLaneIndex + 1); 
+    }
+
+    // 지나간 레인 삭제 로직 (기존 6칸 유지)
+    if (lanes.length > 15 && player.lane > 10) { 
+        lanes = lanes.filter(l => l.index > player.lane - 6); 
+    }
+    
     syncUI();
 }
-
 function moveBackward() {
     if (gameState !== 'PLAYING') return;
     const minAllowedLane = (currentLevel - 1) * LEVEL_DIST;
-    if (player.lane > minAllowedLane) { player.lane--; score = player.lane; shotClock = 100; syncUI(); }
+
+    // 💡 수정 포인트: score(최대 전진 거리)보다 2칸 초과해서 뒤로 가지 못하게 조건을 추가합니다.
+    if (player.lane > minAllowedLane && player.lane > score - 2) {
+        player.lane--;
+        // score = player.lane; // <--- 이 줄을 삭제하여 score가 줄어들지 않고 '최대 거리'를 유지하게 합니다.
+        shotClock = 100;
+        syncUI();
+    }
 }
 
 function showQuiz() {
     const qOverlay = document.getElementById('overlay-quiz'); qOverlay.classList.remove('hidden');
-    const mobisPlayers = playerPool.filter(p => !["🏀", "🐶", "🐳"].includes(String(p.number)) && !p.isGorilla); 
+    const mobisPlayers = playerPool.filter(p => !["🏀", "🐶", "🐳", "🦄"].includes(String(p.number)) && !p.isGorilla); 
     const target = mobisPlayers[Math.floor(Math.random() * mobisPlayers.length)];
     const isNameQuiz = Math.random() > 0.5;
     document.getElementById('quiz-feedback').classList.add('hidden'); document.getElementById('quiz-next-btn').classList.add('hidden');
@@ -778,10 +887,8 @@ function renderCollection() {
         grid.innerHTML += `<div onclick="${owned?`selectPlayerFromRoster(${p.id})`:''}" class="p-2 border-4 ${selectedId===p.id?'border-yellow-400 bg-yellow-50':'border-black'} bg-white text-center"><canvas id="item-${p.id}" width="64" height="64" class="mx-auto ${owned?'':'grayscale opacity-30'}"></canvas><div class="text-[10px] mt-1 text-black font-normal">${owned?p.name:'??'}</div></div>`; setTimeout(()=> { if(document.getElementById(`item-${p.id}`)) drawCharacter(document.getElementById(`item-${p.id}`).getContext('2d'), p, 0,0,64); }, 50); });
 }
 
-// (구) 라커룸 기능 - 유지하지만 상점 기능이 메인임
 function renderEquipment() {
     const grid = document.getElementById('equipment-grid'); if(!grid) return; grid.innerHTML = '';
-    // 기존 유니폼 풀 대신 상점 데이터 활용 가능 여부 확인 필요하나, 일단 빈 상태로 둠
 }
 
 function selectPlayerFromRoster(id) { 
@@ -833,8 +940,6 @@ function resetAllData() {
     }
 }
 
-/* resetAllData() { ... } 함수 바로 아래에 이 내용을 덮어쓰세요 */
-
 // 🛍️ 상점 탭 전환 함수
 function switchShopTab(tabName) {
     document.getElementById('shop-tab-scout').classList.add('hidden');
@@ -852,144 +957,136 @@ function switchShopTab(tabName) {
     } else if(tabName === 'uniform') { 
         btns[2].classList.add('active'); 
         document.getElementById('shop-tab-uniform').classList.remove('hidden');
-        renderAvatarShop(); // 유니폼 탭 클릭 시 상점 그리기
+        renderAvatarShop(); 
     }
 }
 
-// 🛒 아바타 상점 화면 그리기 (상의, 하의, 효과)
-// 🛒 아바타 상점 화면 그리기 (캔버스 미리보기 적용)
-// 🛒 아바타 상점 화면 그리기 (UI 반응형 수정판)
 function renderAvatarShop() {
     const container = document.getElementById('shop-tab-uniform');
     if(!container) return;
     container.innerHTML = ''; 
 
-    // 🎨 스타일 수정: .hidden 클래스가 없을 때만 flex가 적용되도록 수정 (:not(.hidden) 추가)
+    // 🎨 스타일 수정: .hidden 클래스가 없을 때만 flex가 적용되도록 수정
     const style = document.createElement('style');
     style.innerHTML = `
-        /* [수정됨] 숨겨져 있지 않을 때만 flex 적용 */
-        #shop-tab-uniform:not(.hidden) {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            padding: 20px 0 !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
+        .u-shop-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            padding: 10px 0 30px 0;
         }
-
-        .shop-category-title {
-            width: 90% !important;
-            max-width: 380px !important;
-            text-align: left !important;
-            font-size: 16px !important;
-            font-weight: bold !important;
-            color: #000 !important;
-            margin-top: 15px !important;
-            margin-bottom: 8px !important;
-            border-bottom: 2px solid #000 !important;
-            padding-bottom: 5px !important;
+        .u-shop-title {
+            width: 90%;
+            max-width: 380px;
+            text-align: left;
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
         }
-
-        .shop-card-horizontal {
-            display: flex !important;
-            flex-direction: row !important;
-            width: 90% !important;
-            max-width: 380px !important;
-            height: 110px !important;
-            background: #fff !important;
-            border: 3px solid #000 !important;
-            border-radius: 12px !important;
-            margin-bottom: 12px !important;
-            box-shadow: 4px 4px 0px rgba(0,0,0,0.15) !important;
-            overflow: hidden !important;
-            align-items: center !important;
+        .u-shop-card {
+            display: flex;
+            flex-direction: row;
+            width: 90%;
+            max-width: 380px;
+            height: 100px;
+            background: #fff;
+            border: 3px solid #000;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+            overflow: hidden;
+            align-items: center;
         }
-
-        .shop-card-img {
-            width: 100px !important;
-            height: 100% !important;
-            background: #f4f4f4 !important;
-            border-right: 3px solid #000 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            flex-shrink: 0 !important;
+        .u-shop-img {
+            width: 90px;
+            height: 100%;
+            background: #f4f4f4;
+            border-right: 2px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
-
-        .shop-card-info {
-            flex: 1 !important;
-            height: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            padding: 0 15px !important;
-            gap: 6px !important;
+        .u-shop-info {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 15px;
+            gap: 4px;
         }
-
-        .shop-item-name {
-            font-size: 15px !important;
-            font-weight: bold !important;
-            color: #000 !important;
-            line-height: 1.2 !important;
-            margin: 0 !important;
+        .u-shop-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
+            line-height: 1.2;
+            margin: 0;
         }
-
-        .shop-item-price {
-            font-size: 12px !important;
-            color: #666 !important;
-            margin: 0 !important;
+        .u-shop-price {
+            font-size: 12px;
+            color: #666;
+            margin: 0;
         }
-
-        .shop-btn-action {
-            width: 100% !important;
-            height: 32px !important;
-            border: none !important;
-            border-radius: 6px !important;
-            color: white !important;
-            font-family: 'Galmuri11', sans-serif !important;
-            font-weight: bold !important;
-            cursor: pointer !important;
-            font-size: 12px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+        .u-shop-btn {
+            width: 100%;
+            height: 30px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-family: 'Galmuri11', sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .shop-btn-action:active {
+        .u-shop-btn:active {
             transform: translateY(2px);
         }
     `;
     container.appendChild(style);
 
+    const wrapper = document.createElement('div');
+    wrapper.className = 'u-shop-wrapper';
+    container.appendChild(wrapper);
+
     let drawQueue = [];
 
     const addSection = (title, items, type, mySet, selectedId) => {
         const titleDiv = document.createElement('div');
-        titleDiv.className = 'shop-category-title';
+        titleDiv.className = 'u-shop-title';
         titleDiv.innerText = title;
-        container.appendChild(titleDiv);
+        wrapper.appendChild(titleDiv);
 
         items.forEach(item => {
             const isOwned = item.price === 0 || mySet.has(item.id);
             const isEquipped = selectedId === item.id;
-            const canvasId = `shop-canvas-${type}-${item.id}`;
+            const canvasId = `u-shop-cvs-${type}-${item.id}`;
             drawQueue.push({ type, itemId: item.id, canvasId });
 
             const card = document.createElement('div');
-            card.className = 'shop-card-horizontal';
+            card.className = 'u-shop-card';
             card.innerHTML = `
-                <div class="shop-card-img">
+                <div class="u-shop-img">
                     <canvas id="${canvasId}" width="80" height="80" style="image-rendering:pixelated; width:70px; height:70px;"></canvas>
                 </div>
-                <div class="shop-card-info">
-                    <div class="shop-item-name">${item.name}</div>
-                    <div class="shop-item-price">${isOwned ? '보유중' : item.price + ' MP'}</div>
-                    <button class="shop-btn-action" 
+                <div class="u-shop-info">
+                    <div class="u-shop-name">${item.name}</div>
+                    <div class="u-shop-price">${isOwned ? '보유중' : item.price + ' MP'}</div>
+                    <button class="u-shop-btn" 
                             onclick="${isOwned ? `equipItem('${type}', ${item.id})` : `buyItem('${type}', ${item.id})`}" 
                             style="background:${isEquipped ? '#002c5f' : '#D50032'};">
                         ${isEquipped ? '장착 중' : (isOwned ? '장착하기' : '구매하기')}
                     </button>
                 </div>`;
-            container.appendChild(card);
+            wrapper.appendChild(card);
         });
     };
 
@@ -1046,11 +1143,10 @@ function equipItem(type, id) {
     else if(type === 'effects') selectedEffectIdx = id;
 
     saveGameData();
-    renderAvatarShop(); // 버튼 상태 갱신
-    renderPreview(); // 메인 화면 미리보기 갱신
+    renderAvatarShop(); 
+    renderPreview(); 
 }
 
-// 💥 충돌 시 번쩍 효과 (이 코드가 빠지면 게임이 멈출 수 있습니다)
 function triggerHitEffect() {
     const flash = document.getElementById('flash-overlay');
     if (flash) {
